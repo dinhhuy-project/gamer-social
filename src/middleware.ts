@@ -1,50 +1,106 @@
 import { createServerClient } from "@supabase/ssr";
-import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/", "/login", "/register", "/marketplace", "/posts", "/explore", "/profile", "/api/webhooks"];
-const ADMIN_PATHS = ["/admin"];
+import { NextResponse } from "next/server";
 
-const isPublic = (p: string) => PUBLIC_PATHS.some(r => p === r || p.startsWith(r + "/"));
-const isAdmin = (p: string) => ADMIN_PATHS.some(r => p.startsWith(r));
+import type { NextRequest } from "next/server";
 
-export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({ request });
+export async function middleware(
+  request: NextRequest
+) {
+  let response = NextResponse.next({
+    request,
+  });
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env
+      .NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll: () => request.cookies.getAll(),
-        setAll: (list) => {
-          list.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = NextResponse.next({ request });
-          list.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+        getAll() {
+          return request.cookies.getAll();
+        },
+
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(
+            ({ name, value }) =>
+              request.cookies.set(
+                name,
+                value
+              )
+          );
+
+          response = NextResponse.next({
+            request,
+          });
+
+          cookiesToSet.forEach(
+            ({
+              name,
+              value,
+              options,
+            }) =>
+              response.cookies.set(
+                name,
+                value,
+                options
+              )
+          );
         },
       },
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
-  const { pathname } = request.nextUrl;
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (!user && !isPublic(pathname)) {
-    const url = new URL("/login", request.url);
-    url.searchParams.set("redirect", pathname);
-    return NextResponse.redirect(url);
+  const pathname =
+    request.nextUrl.pathname;
+
+  const isAuthPage =
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/register");
+
+  const protectedRoutes = [
+    "/feed",
+    "/messages",
+    "/marketplace",
+    "/notifications",
+    "/saved",
+    "/settings",
+  ];
+
+  const isProtected =
+    protectedRoutes.some((route) =>
+      pathname.startsWith(route)
+    );
+
+  if (!user && isProtected) {
+    return NextResponse.redirect(
+      new URL("/login", request.url)
+    );
   }
 
-  if (user && (pathname === "/login" || pathname === "/register")) {
-    return NextResponse.redirect(new URL("/feed", request.url));
-  }
-
-  if (isAdmin(pathname) && user?.user_metadata?.role !== "admin") {
-    return NextResponse.redirect(new URL("/feed", request.url));
+  if (user && isAuthPage) {
+    return NextResponse.redirect(
+      new URL("/feed", request.url)
+    );
   }
 
   return response;
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: [
+    "/login",
+    "/register",
+
+    "/feed/:path*",
+    "/messages/:path*",
+    "/marketplace/:path*",
+    "/notifications/:path*",
+    "/saved/:path*",
+    "/settings/:path*",
+  ],
 };

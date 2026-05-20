@@ -229,7 +229,6 @@ model users {
   id                                              String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   username                                        String                      @unique @db.VarChar(50)
   email                                           String                      @unique @db.VarChar(255)
-  password_hash                                   String
   display_name                                    String?                     @db.VarChar(100)
   avatar_url                                      String?
   cover_url                                       String?
