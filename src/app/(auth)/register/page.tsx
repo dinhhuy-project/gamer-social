@@ -1,26 +1,271 @@
+"use client";
+
+import { useState } from "react";
+
 import Link from "next/link";
 
-import { AuthCard } from "@/components/auth/AuthCard";
+import {
+  AtSign,
+  Eye,
+  EyeOff,
+  Loader2,
+  Lock,
+  User,
+} from "lucide-react";
 
-import { RegisterForm } from "@/components/auth/RegisterForm";
+import { Button } from "@/components/ui/button";
+
+import { Input } from "@/components/ui/input";
+
+import { AuthLayout } from "@/components/auth/AuthLayout";
+
+import { useAuthActions } from "@/hooks/auth/useAuthActions";
 
 export default function RegisterPage() {
-  return (
-    <AuthCard
-      title="Create account"
-      description="Join Gamer Social"
-    >
-      <RegisterForm />
 
-      <p className="mt-6 text-center text-sm text-zinc-400">
-        Already have an account?{" "}
-        <Link
-          href="/login"
-          className="text-white hover:underline"
+  const [username, setUsername] =
+    useState("");
+
+  const [email, setEmail] =
+    useState("");
+
+  const [password, setPassword] =
+    useState("");
+
+  const [done, setDone] = useState(false);
+
+  const [
+    confirmPassword,
+    setConfirmPassword,
+  ] = useState("");
+
+  const [showPassword, setShowPassword] =
+    useState(false);
+
+  const [
+    showConfirmPassword,
+    setShowConfirmPassword,
+  ] = useState(false);
+
+  const { isLoading, error, signUpWithEmail } = useAuthActions();
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const ok = await signUpWithEmail(email, password, confirmPassword, username);
+    if (ok) setDone(true);
+  }
+
+  // ── Màn hình xác nhận email ────────────────────────────
+  if (done) {
+    return (
+      <AuthLayout
+        title={<><span className="text-[#f46d1b]">Game</span>rHub</>}
+        subtitle="Kiểm tra hộp thư của bạn"
+        footerText="Đã xác nhận?"
+        footerLinkText="Đăng nhập"
+        footerLinkTo="/login"
+      >
+        <div className="text-center space-y-4 py-6">
+          <div className="text-5xl">📬</div>
+          <p className="text-gray-300 text-sm leading-relaxed">
+            Chúng tôi đã gửi link xác nhận đến
+          </p>
+          <p className="text-[#f46d1b] font-medium">{email}</p>
+          <p className="text-gray-500 text-xs">
+            Nhấn vào link trong email để kích hoạt tài khoản.
+            <br />
+            Kiểm tra cả hộp thư Spam nếu không thấy.
+          </p>
+        </div>
+      </AuthLayout>
+    );
+  }
+
+  return (
+    <AuthLayout
+      title={
+        <>
+          Join Us 🚀
+        </>
+      }
+      subtitle="Create an account to get started"
+      footerText="Already have an account?"
+      footerLinkText="Login here"
+      footerLinkTo="/login"
+    >
+      <form
+        className="space-y-5"
+        onSubmit={handleSubmit}
+      >
+        <div className="space-y-4">
+          {/* Username */}
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+              <User className="h-5 w-5" />
+            </div>
+
+            <Input
+              type="text"
+              placeholder="Username"
+              required
+              value={username}
+              onChange={(e) =>
+                setUsername(
+                  e.target.value
+                )
+              }
+              disabled={isLoading}
+              className="pl-10 bg-[#2b2f3a] border-none text-gray-200 h-12 rounded-xl focus-visible:ring-1 focus-visible:ring-orange-500 placeholder:text-gray-500"
+            />
+          </div>
+
+          {/* Email */}
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+              <AtSign className="h-5 w-5" />
+            </div>
+
+            <Input
+              type="email"
+              placeholder="Email"
+              required
+              value={email}
+              onChange={(e) =>
+                setEmail(e.target.value)
+              }
+              disabled={isLoading}
+              className="pl-10 bg-[#2b2f3a] border-none text-gray-200 h-12 rounded-xl focus-visible:ring-1 focus-visible:ring-orange-500 placeholder:text-gray-500"
+            />
+          </div>
+
+          {/* Password */}
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+              <Lock className="h-5 w-5" />
+            </div>
+
+            <Input
+              type={
+                showPassword
+                  ? "text"
+                  : "password"
+              }
+              placeholder="Password"
+              required
+              value={password}
+              minLength={8}
+              security="@"
+              onChange={(e) =>
+                setPassword(
+                  e.target.value
+                )
+              }
+              disabled={isLoading}
+              className="pl-10 pr-10 bg-[#2b2f3a] border-none text-gray-200 h-12 rounded-xl focus-visible:ring-1 focus-visible:ring-orange-500 placeholder:text-gray-500"
+            />
+
+            <button
+              type="button"
+              onClick={() =>
+                setShowPassword(
+                  !showPassword
+                )
+              }
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-300"
+            >
+              {showPassword ? (
+                <EyeOff className="h-5 w-5" />
+              ) : (
+                <Eye className="h-5 w-5" />
+              )}
+            </button>
+          </div>
+
+          {/* Confirm Password */}
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+              <Lock className="h-5 w-5" />
+            </div>
+
+            <Input
+              type={
+                showConfirmPassword
+                  ? "text"
+                  : "password"
+              }
+              placeholder="Confirm Password"
+              required
+              value={confirmPassword}
+              onChange={(e) =>
+                setConfirmPassword(
+                  e.target.value
+                )
+              }
+              disabled={isLoading}
+              className="pl-10 pr-10 bg-[#2b2f3a] border-none text-gray-200 h-12 rounded-xl focus-visible:ring-1 focus-visible:ring-orange-500 placeholder:text-gray-500"
+            />
+
+            <button
+              type="button"
+              onClick={() =>
+                setShowConfirmPassword(
+                  !showConfirmPassword
+                )
+              }
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-300"
+            >
+              {showConfirmPassword ? (
+                <EyeOff className="h-5 w-5" />
+              ) : (
+                <Eye className="h-5 w-5" />
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Error */}
+        {error && (
+          <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl p-3">
+            {error}
+          </div>
+        )}
+
+        {/* Submit */}
+        <Button
+          type="submit"
+          disabled={isLoading}
+          className="w-full bg-[#f46d1b] hover:bg-[#d55e15] text-white font-medium h-12 rounded-xl mt-2 disabled:opacity-50"
         >
-          Login
-        </Link>
-      </p>
-    </AuthCard>
+          {isLoading ? (
+            <div className="flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Creating account...
+            </div>
+          ) : (
+            "Register"
+          )}
+        </Button>
+
+        {/* Terms */}
+        <p className="text-xs text-center text-gray-500 leading-relaxed">
+          By creating an account,
+          you agree to our{" "}
+          <Link
+            href="/terms"
+            className="text-orange-400 hover:underline"
+          >
+            Terms
+          </Link>{" "}
+          and{" "}
+          <Link
+            href="/privacy"
+            className="text-orange-400 hover:underline"
+          >
+            Privacy Policy
+          </Link>
+          .
+        </p>
+      </form>
+    </AuthLayout>
   );
 }
