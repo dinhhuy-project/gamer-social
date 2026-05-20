@@ -1,62 +1,75 @@
 "use client";
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
+
+import { User } from "@supabase/supabase-js";
+
 import { createClient } from "@/lib/supabase/client";
-import type { User } from "@supabase/supabase-js";
-import type { CurrentUser } from "@/types/api.types";
 
 type AuthContextType = {
-  supabaseUser: User | null;
-  profile: CurrentUser | null;
-  isLoading: boolean;
-  signOut: () => Promise<void>;
+  user: User | null;
+  loading: boolean;
 };
 
-const AuthContext = createContext<AuthContextType>({
-  supabaseUser: null, profile: null, isLoading: true, signOut: async () => { },
-});
+const AuthContext =
+  createContext<AuthContextType>({
+    user: null,
+    loading: true,
+  });
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [supabaseUser, setSupabaseUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<CurrentUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+export function AuthProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const supabase = createClient();
 
-  async function fetchProfile() {
-    try {
-      const res = await fetch("/api/me");
-      if (res.ok) setProfile(await res.json());
-    } finally {
-      setIsLoading(false);
-    }
-  }
+  const [user, setUser] =
+    useState<User | null>(null);
+
+  const [loading, setLoading] =
+    useState(true);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setSupabaseUser(user);
-      if (user) fetchProfile(); else setIsLoading(false);
-    });
+    async function getSession() {
+      const {
+        data: { session },
+      } =
+        await supabase.auth.getSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSupabaseUser(session?.user ?? null);
-      if (session?.user) fetchProfile();
-      else { setProfile(null); setIsLoading(false); }
-    });
+      setUser(session?.user ?? null);
 
-    return () => subscription.unsubscribe();
-  }, []);
+      setLoading(false);
+    }
 
-  async function signOut() {
-    await supabase.auth.signOut();
-    setProfile(null);
-    setSupabaseUser(null);
-    window.location.href = "/login";
-  }
+    getSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(
+      (_, session) => {
+        setUser(session?.user ?? null);
+      }
+    );
+
+    return () =>
+      subscription.unsubscribe();
+  }, [supabase]);
 
   return (
-    <AuthContext.Provider value={{ supabaseUser, profile, isLoading, signOut }}>
+    <AuthContext.Provider
+      value={{ user, loading }}
+    >
       {children}
     </AuthContext.Provider>
   );
 }
 
-export const useAuth = () => useContext(AuthContext);
+export function useAuth() {
+  return useContext(AuthContext);
+}

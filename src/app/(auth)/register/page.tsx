@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 import Link from "next/link";
+
+import { toast } from "sonner";
 
 import {
   AtSign,
@@ -20,6 +22,8 @@ import { Input } from "@/components/ui/input";
 import { AuthLayout } from "@/components/auth/AuthLayout";
 
 import { useAuthActions } from "@/hooks/auth/useAuthActions";
+
+import { registerSchema } from "@/lib/validations/user.schema";
 
 export default function RegisterPage() {
 
@@ -47,10 +51,45 @@ export default function RegisterPage() {
     setShowConfirmPassword,
   ] = useState(false);
 
-  const { isLoading, error, signUpWithEmail } = useAuthActions();
+  const [fieldErrors, setFieldErrors] = useState<{
+    username?: string;
+    email?: string;
+    password?: string;
+    confirmPassword?: string;
+  }>({});
+
+  const { isLoading, error, signUpWithEmail, setError } = useAuthActions();
+
+  // Hiển thị toast khi có lỗi
+  useEffect(() => {
+    if (error) {
+      toast.error(error);
+      setError(null); // Reset error sau khi hiển thị
+    }
+  }, [error, setError]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setFieldErrors({});
+
+    const result = registerSchema.safeParse({
+      email,
+      username,
+      password,
+      confirmPassword,
+      display_name: username,
+    });
+
+    if (!result.success) {
+      const errors: Record<string, string> = {};
+      result.error.issues.forEach((err) => {
+        const path = err.path[0] as string;
+        errors[path] = err.message;
+      });
+      setFieldErrors(errors);
+      return;
+    }
+
     const ok = await signUpWithEmail(email, password, confirmPassword, username);
     if (ok) setDone(true);
   }
@@ -97,7 +136,7 @@ export default function RegisterPage() {
         className="space-y-5"
         onSubmit={handleSubmit}
       >
-        <div className="space-y-4">
+        <div className="space-y-6">
           {/* Username */}
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
@@ -109,14 +148,23 @@ export default function RegisterPage() {
               placeholder="Username"
               required
               value={username}
-              onChange={(e) =>
+              onChange={(e) => {
                 setUsername(
                   e.target.value
-                )
-              }
+                );
+                if (fieldErrors.username) {
+                  setFieldErrors({ ...fieldErrors, username: undefined });
+                }
+              }}
               disabled={isLoading}
-              className="pl-10 bg-[#2b2f3a] border-none text-gray-200 h-12 rounded-xl focus-visible:ring-1 focus-visible:ring-orange-500 placeholder:text-gray-500"
+              className={`pl-10 bg-[#2b2f3a] border-2 text-gray-200 h-12 rounded-xl focus-visible:ring-1 focus-visible:ring-orange-500 placeholder:text-gray-500 ${fieldErrors.username
+                ? "border-red-500"
+                : "border-transparent"
+                }`}
             />
+            {fieldErrors.username && (
+              <p className="absolute top-full pt-1 text-xs text-red-400">{fieldErrors.username}</p>
+            )}
           </div>
 
           {/* Email */}
@@ -130,12 +178,21 @@ export default function RegisterPage() {
               placeholder="Email"
               required
               value={email}
-              onChange={(e) =>
-                setEmail(e.target.value)
-              }
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (fieldErrors.email) {
+                  setFieldErrors({ ...fieldErrors, email: undefined });
+                }
+              }}
               disabled={isLoading}
-              className="pl-10 bg-[#2b2f3a] border-none text-gray-200 h-12 rounded-xl focus-visible:ring-1 focus-visible:ring-orange-500 placeholder:text-gray-500"
+              className={`pl-10 bg-[#2b2f3a] border-2 text-gray-200 h-12 rounded-xl focus-visible:ring-1 focus-visible:ring-orange-500 placeholder:text-gray-500 ${fieldErrors.email
+                ? "border-red-500"
+                : "border-transparent"
+                }`}
             />
+            {fieldErrors.email && (
+              <p className="absolute top-full pt-1 text-xs text-red-400">{fieldErrors.email}</p>
+            )}
           </div>
 
           {/* Password */}
@@ -153,15 +210,19 @@ export default function RegisterPage() {
               placeholder="Password"
               required
               value={password}
-              minLength={8}
-              security="@"
-              onChange={(e) =>
+              onChange={(e) => {
                 setPassword(
                   e.target.value
-                )
-              }
+                );
+                if (fieldErrors.password) {
+                  setFieldErrors({ ...fieldErrors, password: undefined });
+                }
+              }}
               disabled={isLoading}
-              className="pl-10 pr-10 bg-[#2b2f3a] border-none text-gray-200 h-12 rounded-xl focus-visible:ring-1 focus-visible:ring-orange-500 placeholder:text-gray-500"
+              className={`pl-10 pr-10 bg-[#2b2f3a] border-2 text-gray-200 h-12 rounded-xl focus-visible:ring-1 focus-visible:ring-orange-500 placeholder:text-gray-500 ${fieldErrors.password
+                ? "border-red-500"
+                : "border-transparent"
+                }`}
             />
 
             <button
@@ -179,6 +240,9 @@ export default function RegisterPage() {
                 <Eye className="h-5 w-5" />
               )}
             </button>
+            {fieldErrors.password && (
+              <p className="absolute top-full pt-1 text-xs text-red-400">{fieldErrors.password}</p>
+            )}
           </div>
 
           {/* Confirm Password */}
@@ -196,13 +260,19 @@ export default function RegisterPage() {
               placeholder="Confirm Password"
               required
               value={confirmPassword}
-              onChange={(e) =>
+              onChange={(e) => {
                 setConfirmPassword(
                   e.target.value
-                )
-              }
+                );
+                if (fieldErrors.confirmPassword) {
+                  setFieldErrors({ ...fieldErrors, confirmPassword: undefined });
+                }
+              }}
               disabled={isLoading}
-              className="pl-10 pr-10 bg-[#2b2f3a] border-none text-gray-200 h-12 rounded-xl focus-visible:ring-1 focus-visible:ring-orange-500 placeholder:text-gray-500"
+              className={`pl-10 pr-10 bg-[#2b2f3a] border-2 text-gray-200 h-12 rounded-xl focus-visible:ring-1 focus-visible:ring-orange-500 placeholder:text-gray-500 ${fieldErrors.confirmPassword
+                ? "border-red-500"
+                : "border-transparent"
+                }`}
             />
 
             <button
@@ -220,15 +290,11 @@ export default function RegisterPage() {
                 <Eye className="h-5 w-5" />
               )}
             </button>
+            {fieldErrors.confirmPassword && (
+              <p className="absolute top-full pt-1 text-xs text-red-400">{fieldErrors.confirmPassword}</p>
+            )}
           </div>
         </div>
-
-        {/* Error */}
-        {error && (
-          <div className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl p-3">
-            {error}
-          </div>
-        )}
 
         {/* Submit */}
         <Button
