@@ -1,0 +1,18 @@
+export const QUERY_KEYS = {
+  posts: ["posts"] as const,
+  post: (id: string) => ["posts", id] as const,
+  feed: (page: number) => ["posts", "feed", page] as const,
+  marketplace: (page: number) => ["posts", "marketplace", page] as const,
+  savedPosts: (userId: string) => ["posts", "saved", userId] as const,
+  me: ["users", "me"] as const,
+  user: (username: string) => ["users", username] as const,
+  followers: (userId: string) => ["users", userId, "followers"] as const,
+  following: (userId: string) => ["users", userId, "following"] as const,
+  comments: (postId: string) => ["comments", postId] as const,
+  tags: ["tags"] as const,
+  conversations: ["conversations"] as const,
+  conversation: (id: string) => ["conversations", id] as const,
+  messages: (convId: string) => ["messages", convId] as const,
+  notifications: ["notifications"] as const,
+  membership: (userId: string) => ["membership", userId] as const,
+} as const;

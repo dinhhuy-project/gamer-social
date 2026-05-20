@@ -240,6 +240,7 @@ model users {
   last_seen_at                                    DateTime?                   @db.Timestamptz(6)
   created_at                                      DateTime                    @default(now()) @db.Timestamptz(6)
   updated_at                                      DateTime                    @default(now()) @db.Timestamptz(6)
+  auth_id                                         String?                     @unique @db.Uuid
   comments                                        comments[]
   conversation_participants                       conversation_participants[]
   conversations_conversations_tx_admin_idTousers  conversations[]             @relation("conversations_tx_admin_idTousers")
@@ -256,7 +257,6 @@ model users {
   posts_posts_user_idTousers                      posts[]                     @relation("posts_user_idTousers")
   reactions                                       reactions[]
   saved_posts                                     saved_posts[]
-  test_sth                                        String?
 
   @@index([role], map: "idx_users_role")
   @@index([username(ops: raw("gin_trgm_ops"))], map: "idx_users_uname_tgm", type: Gin)

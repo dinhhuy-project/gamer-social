@@ -146,7 +146,7 @@ gamer-social/
     │   │   ├── badge.tsx
     │   │   ├── dropdown-menu.tsx
     │   │   ├── tabs.tsx
-    │   │   ├── toast.tsx
+    │   │   ├── sonner.tsx (toast)
     │   │   └── ...
     │   │
     │   ├── layout/                 # Shell components
