@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { authService } from "@/lib/services/index";
 
 // Supabase redirect về đây sau khi user xác nhận email hoặc đăng nhập OAuth
 export async function GET(request: NextRequest) {
@@ -33,26 +33,10 @@ export async function GET(request: NextRequest) {
   // Đảm bảo profile tồn tại trong public.users
   // (Trigger handle_new_auth_user sẽ tạo tự động, nhưng upsert ở đây để chắc chắn)
   try {
-    const user = data.user;
-    const emailPrefix = user.email?.split("@")[0] ?? "user";
-    const shortId = user.id.replace(/-/g, "").slice(0, 6);
-
-    await prisma.users.upsert({
-      where: { auth_id: user.id },
-      update: {
-        // Cập nhật avatar nếu đăng nhập Google lần đầu
-        avatar_url: user.user_metadata?.avatar_url ?? undefined,
-      },
-      create: {
-        auth_id: user.id,
-        email: user.email!,
-        username: `${emailPrefix}_${shortId}`,
-        display_name: user.user_metadata?.full_name
-          ?? user.user_metadata?.name
-          ?? emailPrefix,
-        avatar_url: user.user_metadata?.avatar_url ?? null,
-      },
-    });
+    // delegate to auth service which handles mapping/creation and metadata sync
+    if (data.user) {
+      await authService.getOrCreateUserBySupabaseUser(data.user);
+    }
   } catch (err) {
     // Log lỗi nhưng không block — trigger SQL sẽ xử lý
     console.error("Upsert user profile error:", err);

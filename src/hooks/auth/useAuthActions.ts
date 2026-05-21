@@ -68,12 +68,10 @@ export function useAuthActions() {
 
     // Validate confirm password
     if (password !== confirmPassword) {
-      setError(
-        "Passwords do not match."
-      );
+      setError("Passwords do not match.");
 
       setIsLoading(false);
-      return;
+      return false;
     }
 
     const { error } = await supabase.auth.signUp({
@@ -87,7 +85,7 @@ export function useAuthActions() {
 
     if (error) {
       setError(
-        error.message.includes("already registered")
+        (error as any).message?.includes("already registered")
           ? "Email này đã được đăng ký"
           : "Đăng ký thất bại. Vui lòng thử lại."
       );
@@ -99,6 +97,21 @@ export function useAuthActions() {
     return true; // Caller hiển thị thông báo "Kiểm tra email"
   }
 
+  async function signOut() {
+    setIsLoading(true);
+    setError(null);
+    const { error } = await supabase.auth.signOut();
+    setIsLoading(false);
+    if (error) {
+      setError("Đăng xuất thất bại. Vui lòng thử lại.");
+      return false;
+    }
+
+    router.push("/login");
+    router.refresh();
+    return true;
+  }
+
   return {
     isLoading,
     error,
@@ -106,5 +119,6 @@ export function useAuthActions() {
     signInWithGoogle,
     signInWithEmail,
     signUpWithEmail,
+    signOut,
   };
 }

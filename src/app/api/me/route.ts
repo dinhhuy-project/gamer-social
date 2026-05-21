@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
-import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
+import { authService } from "@/lib/services/auth.service";
 
 export async function GET() {
   const supabase = createClient();
@@ -8,16 +8,9 @@ export async function GET() {
 
   if (error || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const profile = await prisma.users.findUnique({
-    where: { auth_id: user.id },
-    select: {
-      id: true, username: true, email: true, display_name: true,
-      avatar_url: true, cover_url: true, bio: true, role: true,
-      is_active: true, created_at: true,
-    },
-  });
+  const dto = await authService.getCurrentUserFromSupabaseUser(user);
 
-  if (!profile) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+  if (!dto) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
 
-  return NextResponse.json(profile);
+  return NextResponse.json(dto);
 }

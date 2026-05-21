@@ -1,73 +1,38 @@
 "use client";
 
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-} from "react";
-
-import { User } from "@supabase/supabase-js";
+import { createContext, useContext, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { createClient } from "@/lib/supabase/client";
+import { useCurrentUser } from "@/hooks/auth/useCurrentUser";
+import type { CurrentUser } from "@/types/api.types";
 
 type AuthContextType = {
-  user: User | null;
+  user: CurrentUser | null;
   loading: boolean;
 };
 
-const AuthContext =
-  createContext<AuthContextType>({
-    user: null,
-    loading: true,
-  });
+const AuthContext = createContext<AuthContextType>({
+  user: null,
+  loading: true,
+});
 
-export function AuthProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
+  const queryClient = useQueryClient();
 
-  const [user, setUser] =
-    useState<User | null>(null);
-
-  const [loading, setLoading] =
-    useState(true);
+  const { data: user, isLoading } = useCurrentUser();
 
   useEffect(() => {
-    async function getSession() {
-      const {
-        data: { session },
-      } =
-        await supabase.auth.getSession();
+    // When Supabase client auth state changes, invalidate `me` so useCurrentUser refetches
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+      queryClient.invalidateQueries({ queryKey: ["me"] });
+    });
 
-      setUser(session?.user ?? null);
+    return () => subscription.unsubscribe();
+  }, [supabase, queryClient]);
 
-      setLoading(false);
-    }
-
-    getSession();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(
-      (_, session) => {
-        setUser(session?.user ?? null);
-      }
-    );
-
-    return () =>
-      subscription.unsubscribe();
-  }, [supabase]);
-
-  return (
-    <AuthContext.Provider
-      value={{ user, loading }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={{ user: user ?? null, loading: isLoading }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

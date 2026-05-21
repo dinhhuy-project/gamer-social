@@ -23,7 +23,7 @@ import { AuthLayout } from "@/components/auth/AuthLayout";
 
 import { useAuthActions } from "@/hooks/auth/useAuthActions";
 
-import { registerSchema } from "@/lib/validations/user.schema";
+import { registerSchema } from "@/lib/validations/auth.schema";
 
 export default function RegisterPage() {
 

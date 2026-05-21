@@ -22,7 +22,7 @@ import { AuthLayout } from "@/components/auth/AuthLayout";
 
 import { useAuthActions } from "@/hooks/auth/useAuthActions";
 
-import { loginSchema } from "@/lib/validations/user.schema";
+import { loginSchema } from "@/lib/validations/auth.schema";
 
 export default function LoginPage() {
 

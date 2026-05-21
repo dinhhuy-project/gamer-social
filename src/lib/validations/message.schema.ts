@@ -1,11 +1,9 @@
 import { z } from "zod";
 
 export const sendMessageSchema = z.object({
-  content: z.string().min(1).max(2000).optional(),
-  mediaUrls: z.array(z.string().url()).default([]),
-}).refine(
-  (d) => d.content || d.mediaUrls.length > 0,
-  { message: "Phải có nội dung hoặc ảnh" }
-);
+  conversation_id: z.string().uuid(),
 
-export type SendMessageInput = z.infer<typeof sendMessageSchema>;
+  content: z.string().max(5000).optional(),
+
+  media_urls: z.array(z.string().url()).optional(),
+});

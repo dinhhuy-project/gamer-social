@@ -149,6 +149,10 @@ gamer-social/
     │   │   ├── sonner.tsx (toast)
     │   │   └── ...
     │   │
+    │   ├── auth/                   # Auth components
+    │   │   ├── AuthLayout.tsx      # Oauth signin
+    │   │   └── LogoutButton.tsx
+    │   │
     │   ├── layout/                 # Shell components
     │   │   ├── Sidebar.tsx
     │   │   ├── Topbar.tsx
@@ -214,8 +218,8 @@ gamer-social/
     │
     ├── hooks/                      # Custom React hooks
     │   ├── auth/
-    │   │   ├── useUser.ts              # Current user + profile từ context
-    │   │   └── useRequireAuth.ts       # Redirect nếu chưa đăng nhập
+    │   │   ├── useCurrentUser.ts       # Current user + profile từ context
+    │   │   └── useAuthActions.ts       # Login, register, oauth logic
     │   │
     │   ├── posts/
     │   │   ├── usePosts.ts             # Fetch + infinite load danh sách bài
@@ -266,7 +270,16 @@ gamer-social/
     │   │   ├── notification.service.ts # createNotification() helper
     │   │   ├── post.service.ts         # getFeed(), searchPosts()
     │   │   ├── conversation.service.ts # getOrCreateConversation()
-    │   │   └── trade.service.ts        # confirmTrade(), addAdminToChat()
+    │   │   ├── admin.service.ts        #
+    │   │   ├── auth.service.ts         #
+    │   │   ├── comment.service.ts      #
+    │   │   ├── follow.service.ts       #
+    │   │   ├── message.service.ts      #
+    │   │   ├── reaction.service.ts     #
+    │   │   ├── saved-post.service.ts   #
+    │   │   ├── user.service.ts         #
+    │   │   ├── index.service.ts        #
+    │   │   └── shared/                 #
     │   │
     │   ├── utils/
     │   │   ├── cn.ts               # clsx + tailwind-merge
