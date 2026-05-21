@@ -1,44 +1,205 @@
+"use client";
+
+import * as React from "react";
+
 import Link from "next/link";
 
-export default function Sidebar() {
+import { usePathname } from "next/navigation";
+
+import {
+  IconHome,
+  IconBookmark,
+  IconShoppingCart,
+  IconBrandMessenger,
+  IconDeviceNintendo,
+} from "@tabler/icons-react";
+
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+} from "@/components/ui/sidebar";
+
+const data = {
+  navMain: [
+    {
+      title: "Home Page",
+      url: "/feed",
+      icon: IconHome,
+    },
+    {
+      title: "Saved Posts",
+      url: "/saved",
+      icon: IconBookmark,
+    },
+    {
+      title: "Market Place",
+      url: "/marketplace",
+      icon: IconShoppingCart,
+    },
+    {
+      title: "Messenger",
+      url: "/messages",
+      icon: IconBrandMessenger,
+    },
+  ],
+};
+
+export function AppSidebar(
+  props: React.ComponentProps<typeof Sidebar>
+) {
+  const pathname = usePathname();
+
   return (
-    <div className="h-screen py-6 px-4 sidebar-shell">
-      <div className="px-3">
-        <div className="flex items-center gap-3 mb-8">
-          <div className="w-10 h-10 rounded-md bg-gradient-to-tr from-orange-600 to-yellow-400 flex items-center justify-center font-bold text-black">S</div>
-          <div className="text-white font-semibold">SOCIARA</div>
-        </div>
+    <Sidebar
+      collapsible="offcanvas"
+      className="
+        border-r
+        border-orange-500/20
+        bg-black
+      "
+      {...props}
+    >
+      <SidebarHeader
+        className="
+          border-b
+          border-orange-500/20
+          px-4
+          py-5
+        "
+      >
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              className="
+                h-auto
+                p-0
+                hover:bg-transparent
+                active:bg-transparent
+              "
+            >
+              <Link
+                href="/"
+                className="
+                  flex
+                  items-center
+                  gap-3
+                "
+              >
+                <div
+                  className="
+                    flex
+                    h-10
+                    w-10
+                    items-center
+                    justify-center
+                    rounded-xl
+                    border
+                    border-orange-500/30
+                    bg-orange-500/10
+                    shadow-[0_0_20px_rgba(255,115,0,0.25)]
+                  "
+                >
+                  <IconDeviceNintendo
+                    className="
+                      h-6
+                      w-6
+                      text-orange-500
+                    "
+                  />
+                </div>
 
-        <nav className="space-y-2">
-          <Link href="#" className="flex items-center gap-3 p-3 rounded-md bg-gradient-to-r from-orange-600/30 to-transparent text-white">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M13 5v6h6" />
-            </svg>
-            <span className="font-medium">Home Page</span>
-          </Link>
+                <span
+                  className="
+                    text-2xl
+                    font-black
+                    tracking-wide
+                    text-white
+                  "
+                >
+                  SOCI
+                  <span className="text-orange-500">
+                    ARA
+                  </span>
+                </span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
 
-          <Link href="#" className="flex items-center gap-3 p-3 rounded-md text-zinc-300 hover:bg-zinc-800/60">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 5v14l7-5 7 5V5a2 2 0 00-2-2H7a2 2 0 00-2 2z" />
-            </svg>
-            <span>Saved Post</span>
-          </Link>
+      <SidebarContent className="px-3 py-4">
+        <SidebarMenu className="space-y-2">
+          {data.navMain.map((item) => {
+            const isActive =
+              pathname === item.url;
 
-          <Link href="#" className="flex items-center gap-3 p-3 rounded-md text-zinc-300 hover:bg-zinc-800/60">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2 9h14l-2-9M10 21a1 1 0 11-2 0 1 1 0 012 0zm8 0a1 1 0 11-2 0 1 1 0 012 0z" />
-            </svg>
-            <span>Market Place</span>
-          </Link>
+            return (
+              <SidebarMenuItem
+                key={item.title}
+              >
+                <SidebarMenuButton
+                  asChild
+                  tooltip={item.title}
+                  isActive={isActive}
+                  className={`
+                    h-14
+                    rounded-xl
+                    transition-all
+                    duration-200
 
-          <Link href="#" className="flex items-center gap-3 p-3 rounded-md text-zinc-300 hover:bg-zinc-800/60">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-zinc-300" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-            </svg>
-            <span>Messenger</span>
-          </Link>
-        </nav>
-      </div>
-    </div>
+                    ${isActive
+                      ? `
+                          bg-orange-500/15
+                          text-orange-400
+                          border
+                          border-orange-500/30
+                          shadow-[0_0_25px_rgba(255,115,0,0.15)]
+                        `
+                      : `
+                          text-zinc-400
+                          hover:bg-zinc-900
+                          hover:text-white
+                        `
+                    }
+                  `}
+                >
+                  <Link
+                    href={item.url}
+                    className="
+                      flex
+                      items-center
+                      gap-4
+                      px-4
+                    "
+                  >
+                    <item.icon
+                      className="
+                        h-6
+                        w-6
+                        shrink-0
+                      "
+                    />
+
+                    <span
+                      className="
+                        text-[15px]
+                        font-medium
+                      "
+                    >
+                      {item.title}
+                    </span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            );
+          })}
+        </SidebarMenu>
+      </SidebarContent>
+    </Sidebar>
   );
 }

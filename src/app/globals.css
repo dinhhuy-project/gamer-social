@@ -135,39 +135,26 @@
   }
 }
 
-/* App background and overlay to emulate dark orange theme */
-.app-bg {
-  background-image: url('/images/fiery_magma_dragon.png');
-  background-size: cover;
-  background-position: center;
-  filter: brightness(0.28) saturate(1.15);
-  transform: scale(1.03);
-}
+@layer base {
+  :root {
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
 
-.app-overlay {
-  background: linear-gradient(90deg, rgba(0, 0, 0, 0.92) 0%, rgba(0, 0, 0, 0.85) 40%, rgba(0, 0, 0, 0.96) 100%), radial-gradient(ellipse at right, rgba(255, 122, 0, 0.06), transparent 25%);
-}
-
-/* make sure background layers are positioned */
-.app-bg,
-.app-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-}
-
-.sidebar-shell {
-  height: 100%;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(0, 0, 0, 0.12));
-  border-right: 1px solid rgba(255, 255, 255, 0.03);
-}
-
-:root {
-  --accent-orange: #ff6a00;
-  --accent-orange-2: #ff9800;
-}
-
-.app-content {
-  position: relative;
-  z-index: 10;
+  .dark {
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 0 0% 98%;
+    --sidebar-primary-foreground: 240 5.9% 10%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
 }
