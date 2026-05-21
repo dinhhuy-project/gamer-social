@@ -151,7 +151,6 @@ gamer-social/
     │   │
     │   ├── auth/                   # Auth components
     │   │   ├── AuthLayout.tsx      # Oauth signin
-    │   │   └── LogoutButton.tsx
     │   │
     │   ├── layout/                 # Shell components
     │   │   ├── Sidebar.tsx

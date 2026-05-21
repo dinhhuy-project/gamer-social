@@ -1,8 +1,7 @@
 "use client";
 
-import React from "react";
-
 import Link from "next/link";
+import { useState, useRef, useEffect } from "react";
 
 import {
   Search,
@@ -12,6 +11,7 @@ import {
   User,
   Settings,
   LogOut,
+  X,
 } from "lucide-react";
 
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -38,7 +38,39 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group";
 
+import { useAuthActions } from "@/hooks/auth/useAuthActions";
+import { useCurrentUser } from "@/hooks/auth/useCurrentUser";
+
 export function SiteHeader() {
+  const { signOut, isLoading } = useAuthActions();
+  const { data: currentUser } = useCurrentUser();
+  const [isMobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const searchRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!isMobileSearchOpen) return;
+
+    function handleOutside(event: Event) {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setMobileSearchOpen(false);
+      }
+    }
+
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setMobileSearchOpen(false);
+    }
+
+    document.addEventListener("mousedown", handleOutside);
+    document.addEventListener("touchstart", handleOutside);
+    document.addEventListener("keydown", handleKey);
+
+    return () => {
+      document.removeEventListener("mousedown", handleOutside);
+      document.removeEventListener("touchstart", handleOutside);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [isMobileSearchOpen]);
+
   return (
     <header
       className="
@@ -74,60 +106,117 @@ export function SiteHeader() {
         </div>
 
         {/* SEARCH */}
-        <div
-          className="
-            flex
-            flex-1
-            justify-center
-          "
-        >
-          <InputGroup
-            className="
-              h-14
-              max-w-3xl
-              rounded-2xl
-              border
-              border-orange-500/20
-              bg-zinc-950
-              shadow-[0_0_30px_rgba(255,115,0,0.08)]
-            "
-          >
-            <InputGroupAddon className="pl-4">
-              <Search
-                className="
-                  h-5
-                  w-5
-                  text-zinc-500
-                "
-              />
-            </InputGroupAddon>
-
-            <InputGroupInput
-              placeholder="Search for games, players, posts..."
+        <div className="flex flex-1 justify-center">
+          {/* Desktop */}
+          <div className="hidden md:flex flex-1 justify-center">
+            <InputGroup
               className="
-                border-0
-                bg-transparent
-                text-white
-                placeholder:text-zinc-500
-                focus-visible:ring-0
-              "
-            />
-
-            <InputGroupAddon
-              align="inline-end"
-              className="
-                pr-4
-                text-xs
-                text-zinc-600
+                h-14
+                max-w-3xl
+                rounded-2xl
+                border
+                border-orange-500/20
+                bg-zinc-950
+                shadow-[0_0_30px_rgba(255,115,0,0.08)]
               "
             >
-              ⌘K
-            </InputGroupAddon>
-          </InputGroup>
+              <InputGroupAddon className="pl-4">
+                <Search className="h-5 w-5 text-zinc-500" />
+              </InputGroupAddon>
+
+              <InputGroupInput
+                placeholder="Search for games, players, posts..."
+                className="
+                  border-0
+                  bg-transparent
+                  text-white
+                  placeholder:text-zinc-500
+                  focus-visible:ring-0
+                "
+              />
+
+              <InputGroupAddon
+                align="inline-end"
+                className="pr-4 text-xs text-zinc-600"
+              />
+            </InputGroup>
+          </div>
+
+          {/* Mobile: icon toggles expanded input */}
+          <div className="flex md:hidden items-center justify-center w-full">
+            {!isMobileSearchOpen ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setMobileSearchOpen(true)}
+                className="
+                  h-12
+                  w-12
+                  rounded-xl
+                  bg-zinc-950
+                  text-zinc-400
+                  hover:bg-orange-500/10
+                  hover:text-orange-400
+                "
+                aria-label="Open search"
+              >
+                <Search className="h-5 w-5" />
+              </Button>
+            ) : (
+              <div ref={searchRef} className="w-full px-3">
+                <InputGroup
+                  className="
+                    h-12
+                    w-full
+                    rounded-2xl
+                    border
+                    border-orange-500/20
+                    bg-zinc-950
+                    shadow-[0_0_20px_rgba(255,115,0,0.06)]
+                    transition-all
+                    duration-200
+                    ease-out
+                  "
+                >
+                  <InputGroupAddon className="pl-3">
+                    <Search className="h-5 w-5 text-zinc-500" />
+                  </InputGroupAddon>
+
+                  <InputGroupInput
+                    autoFocus
+                    placeholder="Search for games, players, posts..."
+                    className="
+                      border-0
+                      bg-transparent
+                      text-white
+                      placeholder:text-zinc-500
+                      focus-visible:ring-0
+                    "
+                  />
+
+                  <InputGroupAddon align="inline-end" className="pr-3">
+                    <button
+                      onClick={() => setMobileSearchOpen(false)}
+                      className="
+                        h-8
+                        w-8
+                        rounded
+                        text-zinc-400
+                        hover:text-orange-400
+                      "
+                      aria-label="Close search"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </InputGroupAddon>
+                </InputGroup>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* RIGHT */}
-        <div className="flex items-center gap-3">
+        <div className={`${isMobileSearchOpen ? 'hidden md:flex items-center gap-3' : 'flex items-center gap-3'}`}>
           {/* NOTIFICATIONS */}
           <Popover>
             <PopoverTrigger asChild>
@@ -284,7 +373,7 @@ export function SiteHeader() {
             >
               <div className="flex flex-col gap-1">
                 <Link
-                  href="/profile"
+                  href={currentUser?.username ? `/profile/${currentUser.username}` : "/settings"}
                   className="
                     flex
                     items-center
@@ -326,6 +415,8 @@ export function SiteHeader() {
                 <div className="my-1 h-px bg-orange-500/10" />
 
                 <button
+                  onClick={signOut}
+                  disabled={isLoading}
                   className="
                     flex
                     items-center
