@@ -10,7 +10,18 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const id = params.id;
+    let id = params?.id;
+    // fallback: parse id from URL when params not provided (robustness for some runtimes)
+    if (!id) {
+      try {
+        const url = new URL(_request.url);
+        const segs = url.pathname.split("/").filter(Boolean);
+        const postsIndex = segs.findIndex((s) => s === "posts");
+        if (postsIndex >= 0 && segs.length > postsIndex + 1) id = segs[postsIndex + 1];
+      } catch (e) {
+        // ignore
+      }
+    }
     if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
 
     // optional auth
@@ -37,7 +48,15 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const id = params.id;
+    let id = params?.id;
+    if (!id) {
+      try {
+        const url = new URL(request.url);
+        const segs = url.pathname.split("/").filter(Boolean);
+        const postsIndex = segs.findIndex((s) => s === "posts");
+        if (postsIndex >= 0 && segs.length > postsIndex + 1) id = segs[postsIndex + 1];
+      } catch (e) { }
+    }
     if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
 
     const supabase = await createClient();
@@ -67,7 +86,15 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const id = params.id;
+    let id = params?.id;
+    if (!id) {
+      try {
+        const url = new URL(_request.url);
+        const segs = url.pathname.split("/").filter(Boolean);
+        const postsIndex = segs.findIndex((s) => s === "posts");
+        if (postsIndex >= 0 && segs.length > postsIndex + 1) id = segs[postsIndex + 1];
+      } catch (e) { }
+    }
     if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
 
     const supabase = await createClient();

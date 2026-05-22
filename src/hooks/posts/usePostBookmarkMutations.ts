@@ -42,7 +42,16 @@ export function usePostBookmarkMutations() {
 
   const saveMutation = useMutation<SavePostResultDTO, Error, string>({
     mutationFn: (postId) => savePostApi(postId),
-    onSuccess: (_data, postId) => {
+    onMutate: async (postId) => {
+      await qc.cancelQueries({ queryKey: ["postBookmarkState", postId] });
+      const previous = qc.getQueryData(["postBookmarkState", postId]);
+      qc.setQueryData(["postBookmarkState", postId], (old: any) => ({ ...(old ?? {}), saved: true, savedAt: new Date().toISOString() }));
+      return { previous };
+    },
+    onError: (_err, postId, context: any) => {
+      if (context?.previous) qc.setQueryData(["postBookmarkState", postId], context.previous);
+    },
+    onSettled: (_data, _err, postId) => {
       qc.invalidateQueries({ queryKey: ["postBookmarkState", postId] });
       qc.invalidateQueries({ queryKey: ["posts", postId] });
       qc.invalidateQueries({ queryKey: ["posts"] });
@@ -52,7 +61,16 @@ export function usePostBookmarkMutations() {
 
   const unsaveMutation = useMutation<any, Error, string>({
     mutationFn: (postId) => unsavePostApi(postId),
-    onSuccess: (_data, postId) => {
+    onMutate: async (postId) => {
+      await qc.cancelQueries({ queryKey: ["postBookmarkState", postId] });
+      const previous = qc.getQueryData(["postBookmarkState", postId]);
+      qc.setQueryData(["postBookmarkState", postId], (old: any) => ({ ...(old ?? {}), saved: false, savedAt: null }));
+      return { previous };
+    },
+    onError: (_err, postId, context: any) => {
+      if (context?.previous) qc.setQueryData(["postBookmarkState", postId], context.previous);
+    },
+    onSettled: (_data, _err, postId) => {
       qc.invalidateQueries({ queryKey: ["postBookmarkState", postId] });
       qc.invalidateQueries({ queryKey: ["posts", postId] });
       qc.invalidateQueries({ queryKey: ["posts"] });

@@ -1,10 +1,10 @@
-import { createClient } from "@/lib/supabase/client";
+import { createClient } from "@/lib/supabase/server";
 
 export async function uploadToSupabaseStorage(
   file: File,
   bucket: string
 ) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   const fileExt = file.name.split(".").pop();
 

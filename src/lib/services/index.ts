@@ -2,6 +2,7 @@ export * from "@/lib/services/auth.service";
 export * from "@/lib/services/user.service";
 export * from "@/lib/services/follow.service";
 export * from "@/lib/services/post.service";
+export * from "@/lib/services/tag.service";
 export * from "@/lib/services/comment.service";
 export * from "@/lib/services/reaction.service";
 export * from "@/lib/services/saved-post.service";

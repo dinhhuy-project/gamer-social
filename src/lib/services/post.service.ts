@@ -34,7 +34,7 @@ export type PostDTO = {
   listingReviewedBy: string | null;
   listingReviewedAt: Date | null;
   rejectReason: string | null;
-  tagIds: number[];
+  tagNames: string[];
   createdAt: Date;
   updatedAt: Date;
 };
@@ -50,14 +50,17 @@ function toPublicUser(u: any): PublicUser {
   } as PublicUser;
 }
 
-async function loadTagsForPost(postId: string) {
-  const rows = await prisma.post_tags.findMany({ where: { post_id: postId }, select: { tag_id: true } });
-  return rows.map((r) => r.tag_id);
+async function loadTagNamesForPost(postId: string) {
+  const rows = await prisma.post_tags.findMany({
+    where: { post_id: postId },
+    include: { tags: { select: { name: true } } },
+  });
+  return rows.map((r) => r.tags.name);
 }
 
 async function mapPostToDTO(post: any): Promise<PostDTO> {
   const authorRec = await prisma.users.findUnique({ where: { id: post.user_id } });
-  const tagIds = await loadTagsForPost(post.id);
+  const tagNames = await loadTagNamesForPost(post.id);
 
   return {
     id: post.id,
@@ -74,7 +77,7 @@ async function mapPostToDTO(post: any): Promise<PostDTO> {
     listingReviewedBy: post.listing_reviewed_by ?? null,
     listingReviewedAt: post.listing_reviewed_at ?? null,
     rejectReason: post.reject_reason ?? null,
-    tagIds,
+    tagNames,
     createdAt: post.created_at,
     updatedAt: post.updated_at,
   };

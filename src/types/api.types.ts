@@ -61,9 +61,16 @@ export type PostDTO = {
   listingReviewedBy: string | null;
   listingReviewedAt: string | null;
   rejectReason: string | null;
-  tagIds: number[];
+  tagNames: string[];
   createdAt: string;
   updatedAt: string;
+};
+
+export type TagDTO = {
+  id: number;
+  name: string;
+  slug: string;
+  createdAt: string;
 };
 
 export type ReactionType = "like" | "love" | "haha" | "wow" | "sad" | "angry";

@@ -9,11 +9,14 @@ import type { CurrentUser } from "@/types/api.types";
 
 type AuthContextType = {
   user: CurrentUser | null;
+  // `profile` giữ thông tin người dùng để tương thích với các component hiện có
+  profile: CurrentUser | null;
   loading: boolean;
 };
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
+  profile: null,
   loading: true,
 });
 
@@ -32,7 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, [supabase, queryClient]);
 
-  return <AuthContext.Provider value={{ user: user ?? null, loading: isLoading }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user: user ?? null, profile: user ?? null, loading: isLoading }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
