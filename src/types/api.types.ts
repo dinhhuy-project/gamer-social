@@ -31,3 +31,71 @@ export type MembershipStatus = {
   expiresAt: string | null;
   daysLeft: number | null;
 };
+
+export type CommentDTO = {
+  id: string;
+  postId: string;
+  userId: string;
+  parentId: string | null;
+  content: string;
+  isDeleted: boolean;
+  author: PublicUser | null;
+  replyCount: number;
+  createdAt: string;
+  updatedAt: string;
+  children?: CommentDTO[];
+};
+
+export type PostDTO = {
+  id: string;
+  userId: string;
+  author: PublicUser | null;
+  postType: "regular" | "marketplace";
+  content: string | null;
+  mediaUrls: string[];
+  status: "active" | "hidden" | "deleted";
+  viewCount: number;
+  listingPrice: number | null;
+  gameName: string | null;
+  listingStatus: "pending_review" | "approved" | "rejected" | "sold" | null;
+  listingReviewedBy: string | null;
+  listingReviewedAt: string | null;
+  rejectReason: string | null;
+  tagIds: number[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ReactionType = "like" | "love" | "haha" | "wow" | "sad" | "angry";
+
+export type ReactionCounts = {
+  like: number;
+  love: number;
+  haha: number;
+  wow: number;
+  sad: number;
+  angry: number;
+  total: number;
+};
+
+export type ReactionTopItem = { type: ReactionType; count: number };
+
+export type ReactionSummaryDTO = {
+  targetType: "post" | "comment";
+  targetId: string;
+  counts: ReactionCounts;
+  top: ReactionTopItem[];
+  viewerReaction: ReactionType | null;
+  engagementScore: number;
+};
+
+export type BookmarkStateDTO = { saved: boolean; savedAt: string | null };
+
+export type SavePostResultDTO =
+  | { action: "added"; savedAt: string; savedCount: number }
+  | { action: "already"; savedAt: string | null; savedCount: number };
+
+export type SavedItemDTO = {
+  post: PostDTO;
+  savedAt: string;
+};
