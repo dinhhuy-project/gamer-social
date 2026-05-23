@@ -16,9 +16,15 @@ type PostMediaProps = {
 };
 
 function normalizeMedia(media: PostMediaType | string): PostMediaType {
-  return typeof media === "string"
-    ? { url: media, type: "image" }
-    : media;
+  if (typeof media === "string") {
+    const url = media;
+    const isDataVideo = /^data:video\//i.test(url);
+    const videoExtRe = /\.(mp4|webm|ogg|mov|m4v|avi|flv|wmv|mkv)(\?.*)?$/i;
+    const isVideo = isDataVideo || videoExtRe.test(url);
+    return { url, type: isVideo ? "video" : "image" };
+  }
+
+  return media;
 }
 
 export function PostMedia({ mediaUrls, postId }: PostMediaProps) {
@@ -133,6 +139,7 @@ export function PostMedia({ mediaUrls, postId }: PostMediaProps) {
                   src={media.url}
                   controls
                   autoPlay
+                  playsInline
                   className="max-w-[90vw] max-h-[90vh] rounded-lg"
                 />
               ) : (
@@ -166,9 +173,17 @@ export function PostMedia({ mediaUrls, postId }: PostMediaProps) {
 // ── Video thumbnail ──────────────────────────────────────────
 function VideoThumbnail({ src }: { src: string }) {
   return (
-    <div className="relative w-full h-full bg-black flex items-center justify-center">
-      <video src={src} className="w-full h-full object-cover" muted />
-      <div className="absolute inset-0 flex items-center justify-center">
+    <div className="relative w-full h-full bg-black flex items-center justify-center overflow-hidden">
+      <video
+        src={src}
+        className="w-full h-full object-cover"
+        muted
+        playsInline
+        preload="metadata"
+        loop
+        aria-hidden
+      />
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
         <div className="w-12 h-12 rounded-full bg-black/60 backdrop-blur flex items-center justify-center">
           <Play className="w-5 h-5 text-white fill-white ml-0.5" />
         </div>

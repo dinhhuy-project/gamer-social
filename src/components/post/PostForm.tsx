@@ -7,7 +7,7 @@ import { useState, useRef, useCallback } from "react";
 import Image from "next/image";
 import {
   Image as ImageIcon, X, Tag, DollarSign,
-  Gamepad2, Loader2,
+  Gamepad2, Loader2, Play,
 } from "lucide-react";
 import { useAuth } from "@/providers/AuthProvider";
 import { usePostMutations } from "@/hooks/posts/usePostMutations";
@@ -233,12 +233,32 @@ export function PostForm({
           <div className="grid grid-cols-3 gap-1.5">
             {mediaFiles.map((m, i) => (
               <div key={i} className="relative aspect-square rounded-lg overflow-hidden bg-[#12131a]">
-                <Image
-                  src={m.url}
-                  alt=""
-                  fill
-                  className="object-cover"
-                />
+                {m.type === "video" ? (
+                  <div className="w-full h-full">
+                    <video
+                      src={m.url}
+                      className="w-full h-full object-cover"
+                      muted
+                      playsInline
+                      loop
+                      autoPlay
+                      preload="metadata"
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="w-10 h-10 rounded-full bg-black/60 backdrop-blur flex items-center justify-center">
+                        <Play className="w-4 h-4 text-white" />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <Image
+                    src={m.url}
+                    alt=""
+                    fill
+                    className="object-cover"
+                  />
+                )}
+
                 <button
                   type="button"
                   onClick={() => removeMedia(i)}

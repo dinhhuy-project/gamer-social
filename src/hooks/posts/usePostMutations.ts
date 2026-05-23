@@ -100,9 +100,25 @@ export function usePostMutations() {
 
   const createMutation = useMutation<PostDTO, Error, any>({
     mutationFn: createPostApi,
-    onSuccess: () => {
+    onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["posts"] });
       qc.invalidateQueries({ queryKey: ["me"] });
+
+      // If the created post references another post (a share), invalidate share caches for that target post
+      try {
+        const content = (data && (data as any).content) || "";
+        const uuidMatch = content.match(/\/posts\/([0-9a-fA-F\-]{36})\b/);
+        const simpleMatch = content.match(/\/posts\/([A-Za-z0-9_-]{6,64})/);
+        const match = uuidMatch ?? simpleMatch;
+        if (match && match[1]) {
+          const sharedId = match[1];
+          qc.invalidateQueries({ queryKey: ["postShares", sharedId] });
+          qc.invalidateQueries({ queryKey: ["postShareState", sharedId] });
+          qc.invalidateQueries({ queryKey: ["posts", sharedId] });
+        }
+      } catch {
+        // ignore
+      }
     },
   });
 

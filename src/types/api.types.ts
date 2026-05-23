@@ -106,3 +106,13 @@ export type SavedItemDTO = {
   post: PostDTO;
   savedAt: string;
 };
+
+export type ShareStateDTO = { shared: boolean; sharedAt: string | null };
+
+export type PostShareDTO = {
+  id: string;
+  userId: string;
+  user: PublicUser | null;
+  note: string | null;
+  sharedAt: string;
+};

@@ -11,7 +11,8 @@ export const createPostSchema = z.object({
 
   listing_price: z.number().positive().optional(),
 
-  tag_ids: z.array(z.number()).max(10),
+  tag_ids: z.array(z.number()).max(10).optional(),
+  tag_names: z.array(z.string()).max(10).optional(),
 });
 
 export type CreatePostInput = z.infer<typeof createPostSchema>;

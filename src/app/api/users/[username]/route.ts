@@ -21,7 +21,7 @@ export async function GET(
     const current = await authService.getCurrentUserFromSupabaseUser(supaUser);
     if (!current) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
 
-    const profile = await userService.getPublicProfileByUsername(username, current.id);
+    const profile = await userService.getPublicProfileByUsernameOrDisplayName(username, current.id);
     return NextResponse.json(profile);
   } catch (err: any) {
     console.error("GET /api/users/[username] error:", err);

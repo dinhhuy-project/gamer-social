@@ -1,7 +1,6 @@
 
 import { prisma } from "@/lib/prisma";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { AppError } from "./shared/app-error";
 import { assertAuth, assertExists, assertRole } from "./shared/assert";
 import type { PublicUser, CurrentUser, PaginatedResponse } from "@/types/api.types";
 
@@ -47,34 +46,41 @@ function toCurrentUser(u: any): CurrentUser {
 }
 
 /**
- * Lấy profile public theo `username`.
+ * Lấy profile public theo `username` hoặc `display_name`.
+ * Ưu tiên khớp `username` trước; nếu không tìm thấy sẽ khớp `display_name`.
  * Trả về thông tin chuẩn hoá + counts. Nếu truyền `viewerId` sẽ trả `isFollowing`.
  */
-export async function getPublicProfileByUsername(username: string, viewerId?: string | null) {
-  const user = assertExists(
-    await prisma.users.findUnique({ where: { username } }),
-    "User not found"
-  );
+export async function getPublicProfileByUsernameOrDisplayName(
+  identifier: string,
+  viewerId?: string | null
+) {
+  // ưu tiên tìm theo username (unique), fallback sang display_name
+  let user = await prisma.users.findUnique({ where: { username: identifier } });
+  if (!user) {
+    user = await prisma.users.findFirst({ where: { display_name: identifier } });
+  }
+
+  const userExists = assertExists(user, "User not found");
 
   const [followersCount, followingCount, postsCount, isFollowingCount] = await prisma.$transaction(
     async (tx) => {
-      const followersCount = await tx.follows.count({ where: { following_id: user.id } });
-      const followingCount = await tx.follows.count({ where: { follower_id: user.id } });
-      const postsCount = await tx.posts.count({ where: { user_id: user.id, status: "active" } });
+      const followersCount = await tx.follows.count({ where: { following_id: userExists.id } });
+      const followingCount = await tx.follows.count({ where: { follower_id: userExists.id } });
+      const postsCount = await tx.posts.count({ where: { user_id: userExists.id, status: "active" } });
       const isFollowingCount = viewerId
-        ? await tx.follows.count({ where: { follower_id: viewerId, following_id: user.id } })
+        ? await tx.follows.count({ where: { follower_id: viewerId, following_id: userExists.id } })
         : 0;
 
       return [followersCount, followingCount, postsCount, isFollowingCount] as const;
     }
   );
 
-  const publicUser = toPublicUser(user);
+  const publicUser = toPublicUser(userExists);
 
   return {
     ...publicUser,
-    bio: user.bio ?? null,
-    coverUrl: user.cover_url ?? null,
+    bio: userExists.bio ?? null,
+    coverUrl: userExists.cover_url ?? null,
     isFollowing: !!isFollowingCount,
     followersCount,
     followingCount,
@@ -169,7 +175,7 @@ export async function deleteAccount(actorId: string, targetUserId: string) {
       } else if (typeof (supabaseAdmin.auth as any).admin?.getUserById === "function") {
         // no-op fallback to avoid TypeScript complaints
       }
-    } catch (err) {
+    } catch {
       // ignore Supabase cleanup failures
     }
   }
@@ -211,7 +217,7 @@ export async function listUsers(page = 1, perPage = 20, q?: string) {
 }
 
 export const userService = {
-  getPublicProfileByUsername,
+  getPublicProfileByUsernameOrDisplayName,
   getCurrentUserById,
   updateProfile,
   deleteAccount,

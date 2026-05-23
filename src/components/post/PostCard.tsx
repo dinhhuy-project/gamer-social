@@ -4,6 +4,8 @@
 // Card bài đăng trong feed — khớp với design trong ảnh
 
 import { useState } from "react";
+import { usePostShareState } from "@/hooks/posts/usePostShareState";
+import { usePostShares } from "@/hooks/posts/usePostShares";
 import Link from "next/link";
 import Image from "next/image";
 import { MoreHorizontal, ShieldCheck, Crown, Pencil, Trash2, EyeOff } from "lucide-react";
@@ -45,6 +47,11 @@ export function PostCard({
   const isOwner = profile?.id === post.author.id;
   const isAdmin = profile?.role === "admin";
   const { deleteMutation, hideMutation } = usePostMutations();
+  const shareStateQuery = usePostShareState(post.id);
+  const sharesQuery = usePostShares(post.id, 1, 1);
+
+  const shareCount = sharesQuery.data?.total ?? (post as any)._count?.shares ?? 0;
+  const isShared = shareStateQuery.data?.shared ?? false;
 
   // Support both legacy `post.postTags` and new API `post.tagNames` (array of strings)
   const postTags = (post as any).postTags as any[] | undefined;
@@ -250,6 +257,8 @@ export function PostCard({
             postId={post.id}
             reactionCount={(post as any)._count?.reactions ?? 0}
             commentCount={(post as any)._count?.comments ?? 0}
+            hasShared={isShared}
+            shareCount={shareCount}
             hasReacted={hasReacted}
             isSaved={isSaved}
             size="compact"

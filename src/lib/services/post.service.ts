@@ -2,14 +2,16 @@ import { prisma } from "@/lib/prisma";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { AppError, NotFoundError } from "./shared/app-error";
 import { assertAuth, assertExists, assertRole } from "./shared/assert";
-import type { PublicUser } from "@/types/api.types";
+import type { PublicUser, PaginatedResponse } from "@/types/api.types";
 import { Prisma } from "@/generated/prisma/client";
+import { tagService } from "./tag.service";
 
 export type CreatePostInput = {
   post_type: "regular" | "marketplace";
   content?: string | null;
   media_urls?: string[];
   tag_ids?: number[];
+  tag_names?: string[];
   listing_price?: number;
   game_name?: string | null;
 };
@@ -131,6 +133,15 @@ export async function createPost(actorId: string, input: CreatePostInput) {
     }
   }
 
+  // Resolve tag names to ids (if provided) before creating the post
+  let tagIdsToAttach: number[] = [];
+  if (input.tag_ids && input.tag_ids.length) {
+    tagIdsToAttach = input.tag_ids;
+  } else if (input.tag_names && input.tag_names.length) {
+    const resolved = await tagService.findOrCreateTagsByNames(input.tag_names);
+    tagIdsToAttach = resolved.map((t) => t.id);
+  }
+
   const created = await prisma.$transaction(async (tx) => {
     const p = await tx.posts.create({
       data: {
@@ -144,8 +155,8 @@ export async function createPost(actorId: string, input: CreatePostInput) {
       },
     });
 
-    if (input.tag_ids && input.tag_ids.length) {
-      for (const t of input.tag_ids) {
+    if (tagIdsToAttach && tagIdsToAttach.length) {
+      for (const t of tagIdsToAttach) {
         try {
           await tx.post_tags.create({ data: { post_id: p.id, tag_id: t } });
         } catch (e: any) {
@@ -153,6 +164,35 @@ export async function createPost(actorId: string, input: CreatePostInput) {
           if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002")) throw e;
         }
       }
+    }
+
+    // detect share behavior: if the post content contains a link to another post
+    // e.g. "... https://host/posts/<id>", create a `post_shares` entry referencing that post
+    try {
+      if (input.content && typeof input.content === "string") {
+        const content = input.content;
+        // prefer strict UUID match (Prisma gen_random_uuid())
+        const uuidMatch = content.match(/\/posts\/([0-9a-fA-F\-]{36})\b/);
+        const simpleMatch = content.match(/\/posts\/([A-Za-z0-9_-]{6,64})/);
+        const match = uuidMatch ?? simpleMatch;
+        if (match && match[1]) {
+          const sharedPostId = match[1];
+          // ensure target post exists and is visible (use same tx)
+          const target = await tx.posts.findUnique({ where: { id: sharedPostId } });
+          if (target) {
+            const note = content.slice(0, (match.index ?? content.indexOf(match[0]))).trim() || null;
+            try {
+              await tx.post_shares.create({ data: { user_id: actorId, post_id: sharedPostId, note: note ?? undefined } });
+              // invalidate small aggregate cache (best-effort)
+              try { aggregateCache.delete(`post:${sharedPostId}:shareAgg`); } catch { }
+            } catch {
+              // ignore share insertion failures
+            }
+          }
+        }
+      }
+    } catch {
+      // best-effort only
     }
 
     return p;
@@ -353,6 +393,148 @@ export async function listPosts(
   } as import("@/types/api.types").PaginatedResponse<PostDTO>;
 }
 
+// ------------------------
+// Post share utilities
+// ------------------------
+type CacheEntry<T> = { expiresAt: number; value: T };
+const aggregateCache = new Map<string, CacheEntry<any>>();
+const AGGREGATE_TTL = 5_000; // 5s
+const AGGREGATE_CACHE_MAX = 5000;
+
+function cacheGet<T>(key: string): T | undefined {
+  const e = aggregateCache.get(key);
+  if (!e) return undefined;
+  if (Date.now() > e.expiresAt) {
+    aggregateCache.delete(key);
+    return undefined;
+  }
+  return e.value as T;
+}
+
+function cacheSet<T>(key: string, value: T, ttl = AGGREGATE_TTL) {
+  try {
+    if (aggregateCache.size >= AGGREGATE_CACHE_MAX) {
+      const it = aggregateCache.keys();
+      const oldest = it.next().value;
+      if (oldest) aggregateCache.delete(oldest);
+    }
+  } catch {
+    // ignore trimming failures
+  }
+  aggregateCache.set(key, { value, expiresAt: Date.now() + ttl });
+}
+
+export type PostShareDTO = {
+  id: string;
+  userId: string;
+  user: PublicUser | null;
+  note: string | null;
+  sharedAt: Date;
+};
+
+export async function getShareState(userId: string | null | undefined, postId: string) {
+  if (!userId) return { shared: false, sharedAt: null };
+  const rec = await prisma.post_shares.findFirst({ where: { user_id: userId, post_id: postId }, orderBy: { shared_at: "desc" }, select: { shared_at: true } });
+  return { shared: !!rec, sharedAt: rec?.shared_at ?? null };
+}
+
+async function mapShareToDTO(s: any): Promise<PostShareDTO> {
+  const u = await prisma.users.findUnique({ where: { id: s.user_id } });
+  return {
+    id: s.id,
+    userId: s.user_id,
+    user: toPublicUser(u),
+    note: s.note ?? null,
+    sharedAt: s.shared_at,
+  };
+}
+
+export async function sharePost(actorId: string, postId: string, note?: string) {
+  assertAuth(actorId);
+  if (!postId) throw new AppError("postId is required", 400, "INVALID_INPUT");
+
+  await assertExists(await prisma.posts.findUnique({ where: { id: postId } }), "Post not found");
+
+  const created = await prisma.$transaction(async (tx) => {
+    const rec = await tx.post_shares.create({ data: { user_id: actorId, post_id: postId, note: note ?? undefined } });
+    return rec;
+  });
+
+  // invalidate share count cache
+  try { aggregateCache.delete(`post:${postId}:shareAgg`); } catch { }
+
+  return mapShareToDTO(created);
+}
+
+export async function unsharePost(actorId: string, postId: string) {
+  assertAuth(actorId);
+  if (!postId) throw new AppError("postId is required", 400, "INVALID_INPUT");
+
+  const existing = await prisma.post_shares.findMany({ where: { user_id: actorId, post_id: postId }, select: { id: true } });
+  if (!existing || existing.length === 0) return { removed: false };
+
+  await prisma.$transaction(async (tx) => {
+    await tx.post_shares.deleteMany({ where: { user_id: actorId, post_id: postId } });
+  });
+
+  try { aggregateCache.delete(`post:${postId}:shareAgg`); } catch { }
+
+  return { removed: true };
+}
+
+export async function getShareCountForPost(postId: string): Promise<number> {
+  const cacheKey = `post:${postId}:shareAgg`;
+  const cached = cacheGet<number>(cacheKey);
+  if (cached != null) return cached;
+  const cnt = await prisma.post_shares.count({ where: { post_id: postId } });
+  cacheSet(cacheKey, cnt);
+  return cnt;
+}
+
+export async function getShareCountsForPosts(postIds: string[]): Promise<Map<string, number>> {
+  if (!postIds.length) return new Map<string, number>();
+  const groups = await prisma.post_shares.groupBy({
+    by: ["post_id"],
+    where: { post_id: { in: postIds } },
+    _count: { _all: true },
+  } as any);
+  const m = new Map<string, number>();
+  for (const g of groups as any[]) {
+    m.set(g.post_id as string, (g._count && g._count._all) ?? 0);
+  }
+  for (const id of postIds) if (!m.has(id)) m.set(id, 0);
+  return m;
+}
+
+export async function listPostShares(
+  viewerId: string | null | undefined,
+  postId: string,
+  page = 1,
+  perPage = 20
+): Promise<PaginatedResponse<PostShareDTO>> {
+  const take = Math.max(1, Math.min(100, perPage));
+  const skip = Math.max(0, (page - 1) * take);
+
+  const [total, rows] = await prisma.$transaction([
+    prisma.post_shares.count({ where: { post_id: postId } }),
+    prisma.post_shares.findMany({ where: { post_id: postId }, skip, take, orderBy: { shared_at: "desc" } }),
+  ] as const);
+
+  const data = await Promise.all(rows.map((r) => mapShareToDTO(r)));
+  const totalPages = Math.ceil(total / take) || 1;
+  return { data, total, page, totalPages, hasMore: page < totalPages };
+}
+
+export async function enrichPostsWithShares<T extends { id: string }>(viewerId: string | null | undefined, posts: T[]) {
+  const postIds = posts.map((p) => p.id);
+  if (!postIds.length) return posts.map((p) => ({ ...p, shareState: { shared: false, sharedAt: null } }));
+
+  const recs = viewerId ? await prisma.post_shares.findMany({ where: { user_id: viewerId, post_id: { in: postIds } }, select: { post_id: true, shared_at: true } }) : [];
+  const map = new Map<string, Date>();
+  for (const r of recs) map.set(r.post_id!, r.shared_at);
+  return posts.map((p) => ({ ...p, shareState: { shared: map.has(p.id), sharedAt: map.get(p.id) ?? null } }));
+}
+
 export const postService = {
   getPostById,
   createPost,
@@ -362,6 +544,14 @@ export const postService = {
   deletePost,
   reviewListing,
   listPosts,
+  // shares
+  sharePost,
+  unsharePost,
+  getShareState,
+  getShareCountForPost,
+  getShareCountsForPosts,
+  listPostShares,
+  enrichPostsWithShares,
 };
 
 export default postService;

@@ -4,16 +4,13 @@
 // Modal chia sẻ bài đăng: copy link, share lên tường
 
 import { useState } from "react";
-import { Check, Copy, X, Globe } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { useQueryClient } from "@tanstack/react-query";
+import { Check, Copy, Globe } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils/cn";
 import { ROUTES } from "@/lib/constants/routes";
 import { usePostMutations } from "@/hooks/posts/usePostMutations";
+import { usePost } from "@/hooks/posts/usePost";
 
 type PostShareModalProps = {
   open: boolean;
@@ -25,7 +22,9 @@ export function PostShareModal({ open, onClose, postId }: PostShareModalProps) {
   const [copied, setCopied] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [shareNote, setShareNote] = useState("");
-  const { create } = usePostMutations();
+  const { createMutation } = usePostMutations();
+  const qc = useQueryClient();
+  const postQuery = usePost(postId);
 
   const postUrl = typeof window !== "undefined"
     ? `${window.location.origin}${ROUTES.post(postId)}`
@@ -52,49 +51,84 @@ export function PostShareModal({ open, onClose, postId }: PostShareModalProps) {
   async function handleShare() {
     setSharing(true);
     try {
-      // Create a new post that references the original post via content.
-      // The backend expects `content`, `media_urls`, `post_type`, `tag_ids` per schema.
-      // We'll create a simple share post with content containing the note and original post URL.
-      const url = typeof window !== "undefined" ? `${window.location.origin}${ROUTES.post(postId)}` : ROUTES.post(postId);
+      // Use the `usePost` hook data (refetch if not loaded) instead of fetch
+      let original = postQuery.data;
+      if (!original) {
+        const ref = await postQuery.refetch();
+        original = ref.data ?? undefined;
+      }
+      if (!original) throw new Error("Failed to load original post");
 
-      const input = {
-        content: `${shareNote ? shareNote + "\n\n" : ""}${url}`,
-        media_urls: [],
-        post_type: "regular",
-        tag_ids: [],
+      const userDisplayName = original.author?.displayName ?? "unknown";
+      const baseContent = original?.content ?? "";
+      const separator = baseContent ? "\n\n" : "";
+      // Include a direct link to the original post so server-side creation
+      // can detect the share and insert a `post_shares` record atomically.
+      const postLink = postUrl;
+      const newContent = `${baseContent}${separator} | Source: ${userDisplayName}'s post ${shareNote ? ` | Note: ${shareNote}` : ""}`;
+
+      const input: any = {
+        content: newContent,
+        media_urls: (original as any)?.mediaUrls ?? [],
+        post_type: (original as any)?.postType ?? "regular",
       };
 
-      create(input);
+      // Prefer existing tag IDs; otherwise send tag names and let the server resolve/create them
+      if ((original as any)?.tagIds && (original as any)?.tagIds.length) {
+        input.tag_ids = (original as any).tagIds;
+      } else if ((original as any)?.tagNames && (original as any)?.tagNames.length) {
+        input.tag_names = (original as any).tagNames;
+      } else {
+        input.tag_ids = [];
+      }
+
+      if ((original as any)?.postType === "marketplace") {
+        input.listing_price = (original as any)?.listingPrice ?? undefined;
+        input.game_name = (original as any)?.gameName ?? undefined;
+      }
+
+      // create the post and wait for result so we can create a post_shares record and invalidate caches
+      await createMutation.mutateAsync(input);
+
+      // Note: the server `createPost` will detect the `/posts/<id>` link above
+      // and create the `post_shares` record inside the same transaction. We
+      // therefore don't need a separate API call here.
+
+      // Invalidate share-related queries for the original post so UI reflects the new share
+      try {
+        qc.invalidateQueries({ queryKey: ["postShares", postId] });
+        qc.invalidateQueries({ queryKey: ["postShareState", postId] });
+        qc.invalidateQueries({ queryKey: ["posts", postId] });
+        qc.invalidateQueries({ queryKey: ["posts"] });
+        qc.invalidateQueries({ queryKey: ["me"] });
+      } catch {
+        // ignore invalidation failures
+      }
+
       onClose();
+    } catch (err) {
+      console.error("PostShareModal share error:", err);
     } finally {
       setSharing(false);
     }
   }
 
+  const shareDisabled = sharing || postQuery.isLoading || postQuery.isFetching || !postQuery.data;
+
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="bg-[#1e2128] border-[#2e3240] text-white max-w-md p-0 overflow-hidden">
+      <DialogContent aria-describedby="Share Post" className="bg-[#1e2128] border-[#2e3240] text-white p-0 w-full max-w-[calc(100%-2rem)] sm:max-w-lg md:max-w-2xl max-h-[80vh] overflow-auto">
         {/* Header */}
         <DialogHeader className="px-6 pt-5 pb-4 border-b border-[#2e3240]">
           <div className="flex items-center justify-between">
-            <DialogTitle className="text-white font-semibold text-base">
-              Chia sẻ bài viết
-            </DialogTitle>
-            <button
-              onClick={onClose}
-              className="text-[#8b8fa8] hover:text-white transition-colors p-1 rounded"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <DialogTitle className="text-white font-semibold text-base">Chia sẻ bài viết</DialogTitle>
           </div>
         </DialogHeader>
 
         <div className="px-6 py-5 space-y-4">
           {/* Copy link */}
           <div className="space-y-1.5">
-            <p className="text-[#8b8fa8] text-xs font-medium uppercase tracking-wide">
-              Link bài viết
-            </p>
+            <p className="text-[#8b8fa8] text-xs font-medium uppercase tracking-wide">Link bài viết</p>
             <div className="flex gap-2">
               <div className="flex-1 bg-[#12131a] border border-[#2e3240] rounded-lg px-3 py-2.5 flex items-center gap-2 min-w-0">
                 <Globe className="w-3.5 h-3.5 text-[#8b8fa8] flex-shrink-0" />
@@ -120,9 +154,7 @@ export function PostShareModal({ open, onClose, postId }: PostShareModalProps) {
 
           {/* Share to feed */}
           <div className="space-y-1.5">
-            <p className="text-[#8b8fa8] text-xs font-medium uppercase tracking-wide">
-              Đăng lên tường của bạn
-            </p>
+            <p className="text-[#8b8fa8] text-xs font-medium uppercase tracking-wide">Đăng lên tường của bạn</p>
             <textarea
               value={shareNote}
               onChange={(e) => setShareNote(e.target.value)}
@@ -151,7 +183,7 @@ export function PostShareModal({ open, onClose, postId }: PostShareModalProps) {
             </button>
             <button
               onClick={handleShare}
-              disabled={sharing}
+              disabled={shareDisabled}
               className="flex-1 py-2.5 rounded-lg bg-[#f46d1b] hover:bg-[#e05c0a] disabled:opacity-60 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
             >
               {sharing ? (

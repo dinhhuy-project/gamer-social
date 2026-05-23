@@ -24,7 +24,7 @@ export async function GET(
       viewer = await authService.getCurrentUserFromSupabaseUser(supaUser);
     }
 
-    const profile = await userService.getPublicProfileByUsername(username, viewer?.id);
+    const profile = await userService.getPublicProfileByUsernameOrDisplayName(username, viewer?.id);
     return NextResponse.json(profile);
   } catch (err: any) {
     console.error("GET /api/users/[username]/follow error:", err);
@@ -52,7 +52,7 @@ export async function POST(
     if (!current) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
 
     // ensure target exists and get id
-    const target = await userService.getPublicProfileByUsername(username);
+    const target = await userService.getPublicProfileByUsernameOrDisplayName(username);
 
     const result = await followService.followUser(current.id, target.id);
     return NextResponse.json(result);
@@ -82,7 +82,7 @@ export async function DELETE(
     if (!current) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
 
     // ensure target exists and get id
-    const target = await userService.getPublicProfileByUsername(username);
+    const target = await userService.getPublicProfileByUsernameOrDisplayName(username);
 
     const result = await followService.unfollowUser(current.id, target.id);
     return NextResponse.json(result);

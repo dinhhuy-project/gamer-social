@@ -1,21 +1,18 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
-import { postService } from "@/lib/services/post.service";
 import { authService } from "@/lib/services/index";
+import { postService } from "@/lib/services/post.service";
 import { AppError, NotFoundError } from "@/lib/services/shared/app-error";
-import { createPostSchema } from "@/lib/validations/post.schema";
-
-const updateSchema = createPostSchema.partial().extend({ tag_ids: createPostSchema.shape.tag_ids.optional().nullable() as any });
 
 export async function GET(
-  request: Request,
+  _request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
     let id = params?.id;
     if (!id) {
       try {
-        const url = new URL(request.url);
+        const url = new URL(_request.url);
         const segs = url.pathname.split("/").filter(Boolean);
         const postsIndex = segs.findIndex((s) => s === "posts");
         if (postsIndex >= 0 && segs.length > postsIndex + 1) id = segs[postsIndex + 1];
@@ -25,25 +22,26 @@ export async function GET(
     }
     if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
 
-    // optional auth
+    // optional auth to compute viewer state
     const supabase = await createClient();
     const resp = await supabase.auth.getUser();
     const supaUser = resp?.data?.user ?? null;
     const error = resp?.error ?? null;
+
     let viewer: any = null;
     if (!error && supaUser) viewer = await authService.getCurrentUserFromSupabaseUser(supaUser);
 
-    const post = await postService.getPostById(viewer?.id ?? null, id);
-    return NextResponse.json(post);
+    const state = await postService.getShareState(viewer?.id ?? null, id);
+    return NextResponse.json(state);
   } catch (err: any) {
-    console.error("GET /api/posts/[id] error:", err);
+    console.error("GET /api/posts/[id]/share error:", err);
     if (err instanceof NotFoundError) return NextResponse.json({ error: err.message }, { status: 404 });
     if (err instanceof AppError) return NextResponse.json({ error: err.message }, { status: err.statusCode });
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
 
-export async function PATCH(
+export async function POST(
   request: Request,
   { params }: { params: { id: string } }
 ) {
@@ -70,39 +68,33 @@ export async function PATCH(
     const current = await authService.getCurrentUserFromSupabaseUser(supaUser);
     if (!current) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
 
-    const body = await request.json();
+    const body = await request.json().catch(() => ({}));
+    const note = body?.note;
 
-    // action shortcuts
-    if (body && body.action === "hide") {
-      const res = await postService.hidePost(current.id, id);
-      return NextResponse.json(res);
-    }
-
-    if (body && body.action === "restore") {
-      const res = await postService.restorePost(current.id, id);
-      return NextResponse.json(res);
-    }
-
-    const parsed = updateSchema.parse(body);
-    const res = await postService.updatePost(current.id, id, parsed as any);
+    const res = await postService.sharePost(current.id, id, note);
     return NextResponse.json(res);
   } catch (err: any) {
-    console.error("PATCH /api/posts/[id] error:", err);
+    // Log full error for debugging
+    console.error("POST /api/posts/[id]/share error:", err?.stack || err);
+
     if (err instanceof NotFoundError) return NextResponse.json({ error: err.message }, { status: 404 });
     if (err instanceof AppError) return NextResponse.json({ error: err.message }, { status: err.statusCode });
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+
+    // In development return the actual error message to aid debugging.
+    const isDev = process.env.NODE_ENV !== "production";
+    return NextResponse.json({ error: isDev ? (err?.message || String(err)) : "Internal Server Error" }, { status: 500 });
   }
 }
 
 export async function DELETE(
-  request: Request,
+  _request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
     let id = params?.id;
     if (!id) {
       try {
-        const url = new URL(request.url);
+        const url = new URL(_request.url);
         const segs = url.pathname.split("/").filter(Boolean);
         const postsIndex = segs.findIndex((s) => s === "posts");
         if (postsIndex >= 0 && segs.length > postsIndex + 1) id = segs[postsIndex + 1];
@@ -121,10 +113,10 @@ export async function DELETE(
     const current = await authService.getCurrentUserFromSupabaseUser(supaUser);
     if (!current) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
 
-    const res = await postService.deletePost(current.id, id);
-    return NextResponse.json(res);
+    const result = await postService.unsharePost(current.id, id);
+    return NextResponse.json(result);
   } catch (err: any) {
-    console.error("DELETE /api/posts/[id] error:", err);
+    console.error("DELETE /api/posts/[id]/share error:", err);
     if (err instanceof NotFoundError) return NextResponse.json({ error: err.message }, { status: 404 });
     if (err instanceof AppError) return NextResponse.json({ error: err.message }, { status: err.statusCode });
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

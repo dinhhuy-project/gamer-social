@@ -18,6 +18,7 @@ type PostActionsProps = {
   reactionCount: number;
   commentCount: number;
   shareCount?: number;
+  hasShared?: boolean;
   hasReacted: boolean;
   isSaved: boolean;
   onCommentClick?: () => void;
@@ -31,6 +32,7 @@ export function PostActions({
   reactionCount,
   commentCount,
   shareCount = 0,
+  hasShared = false,
   hasReacted: initialReacted,
   isSaved: initialSaved,
   onCommentClick,
@@ -145,17 +147,21 @@ export function PostActions({
         {/* Share */}
         <ActionButton
           onClick={onShareClick}
+          active={hasShared}
+          activeColor="text-[#f46d1b]"
           label={`${formatNumber(shareCount)} lượt chia sẻ`}
           compact={isCompact}
         >
           <Share2 className={cn(
-            "text-[#8b8fa8] transition-colors",
+            "transition-all duration-200",
             isCompact ? "w-4 h-4" : "w-5 h-5",
+            hasShared ? "fill-[#f46d1b] text-[#f46d1b] scale-110" : "text-[#8b8fa8]",
           )} />
           {shareCount > 0 && (
             <span className={cn(
-              "tabular-nums text-[#8b8fa8]",
+              "tabular-nums",
               isCompact ? "text-xs" : "text-sm",
+              hasShared ? "text-[#f46d1b]" : "text-[#8b8fa8]",
             )}>
               {formatNumber(shareCount)}
             </span>
