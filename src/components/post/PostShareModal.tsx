@@ -3,14 +3,14 @@
 // src/components/post/PostShareModal.tsx
 // Modal chia sẻ bài đăng: copy link, share lên tường
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Check, Copy, Globe } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils/cn";
 import { ROUTES } from "@/lib/constants/routes";
 import { usePostMutations } from "@/hooks/posts/usePostMutations";
-import { usePost } from "@/hooks/posts/usePost";
+import type { PostDTO } from "@/types/api.types";
 
 type PostShareModalProps = {
   open: boolean;
@@ -24,7 +24,18 @@ export function PostShareModal({ open, onClose, postId }: PostShareModalProps) {
   const [shareNote, setShareNote] = useState("");
   const { createMutation } = usePostMutations();
   const qc = useQueryClient();
-  const postQuery = usePost(postId);
+  const cachedOriginal = useMemo<PostDTO | undefined>(() => {
+    try {
+      if (typeof window === "undefined") return undefined;
+      const raw = localStorage.getItem("posts_page");
+      if (!raw) return undefined;
+      const parsed = JSON.parse(raw);
+      const list = (parsed?.payload?.data) ?? parsed?.data ?? [];
+      return list.find((p: any) => p.id === postId);
+    } catch {
+      return undefined;
+    }
+  }, [postId]);
 
   const postUrl = typeof window !== "undefined"
     ? `${window.location.origin}${ROUTES.post(postId)}`
@@ -51,20 +62,17 @@ export function PostShareModal({ open, onClose, postId }: PostShareModalProps) {
   async function handleShare() {
     setSharing(true);
     try {
-      // Use the `usePost` hook data (refetch if not loaded) instead of fetch
-      let original = postQuery.data;
+      // Use the cached post data from localStorage (populated by `usePosts`)
+      const original = cachedOriginal;
       if (!original) {
-        const ref = await postQuery.refetch();
-        original = ref.data ?? undefined;
+        throw new Error("Failed to load original post from localStorage");
       }
-      if (!original) throw new Error("Failed to load original post");
 
       const userDisplayName = original.author?.displayName ?? "unknown";
       const baseContent = original?.content ?? "";
       const separator = baseContent ? "\n\n" : "";
       // Include a direct link to the original post so server-side creation
       // can detect the share and insert a `post_shares` record atomically.
-      const postLink = postUrl;
       const newContent = `${baseContent}${separator} | Source: ${userDisplayName}'s post ${shareNote ? ` | Note: ${shareNote}` : ""}`;
 
       const input: any = {
@@ -113,7 +121,7 @@ export function PostShareModal({ open, onClose, postId }: PostShareModalProps) {
     }
   }
 
-  const shareDisabled = sharing || postQuery.isLoading || postQuery.isFetching || !postQuery.data;
+  const shareDisabled = sharing || !cachedOriginal;
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>

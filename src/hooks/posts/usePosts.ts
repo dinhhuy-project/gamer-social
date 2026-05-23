@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { useQuery, UseQueryResult } from "@tanstack/react-query";
 import type { PaginatedResponse, PostDTO } from "@/types/api.types";
 
 async function fetchPosts(page: number, perPage: number, marketplace = false) {
@@ -19,13 +19,31 @@ async function fetchPosts(page: number, perPage: number, marketplace = false) {
     throw new Error(msg || "Failed to fetch posts");
   }
 
-  return (await res.json()) as PaginatedResponse<PostDTO>;
+  const payload = (await res.json()) as PaginatedResponse<PostDTO>;
+
+  // Persist the most-recently fetched page of posts to localStorage.
+  // Navigating to a different page will overwrite this stored page data.
+  try {
+    if (typeof window !== "undefined" && window.localStorage) {
+      const store = {
+        scope: marketplace ? "marketplace" : "feed",
+        page,
+        perPage,
+        payload,
+        savedAt: new Date().toISOString(),
+      };
+      localStorage.setItem("posts_page", JSON.stringify(store));
+    }
+  } catch {
+    // ignore storage errors
+  }
+
+  return payload;
 }
 
-export function usePosts(page = 1, perPage = 20, marketplace = false) {
+export function usePosts(page = 1, perPage = 20, marketplace = false): UseQueryResult<PaginatedResponse<PostDTO>, Error> {
   return useQuery<PaginatedResponse<PostDTO>, Error>({
     queryKey: ["posts", marketplace ? "marketplace" : "feed", page],
     queryFn: () => fetchPosts(page, perPage, marketplace),
-    placeholderData: keepPreviousData,
   });
 }

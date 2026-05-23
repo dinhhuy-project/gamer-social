@@ -7,9 +7,10 @@ import { reactionSchema } from "@/lib/validations/reaction.schema";
 
 export async function GET(
   _request: Request,
-  { params }: { params: { id: string } }
+  context: { params?: any }
 ) {
   try {
+    const params = await context?.params;
     let id = params?.id;
     // fallback: parse id from URL when params not provided (robustness for some runtimes)
     if (!id) {
@@ -45,9 +46,10 @@ export async function GET(
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params?: any }
 ) {
   try {
+    const params = await context?.params;
     let id = params?.id;
     if (!id) {
       try {
@@ -83,9 +85,10 @@ export async function POST(
 
 export async function DELETE(
   _request: Request,
-  { params }: { params: { id: string } }
+  context: { params?: any }
 ) {
   try {
+    const params = await context?.params;
     let id = params?.id;
     if (!id) {
       try {

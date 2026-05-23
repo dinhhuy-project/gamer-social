@@ -5,6 +5,7 @@
 
 import { useState, useCallback } from "react";
 import { Heart, MessageCircle, Share2, Bookmark } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { usePostReactionMutations } from "@/hooks/posts/usePostReactionMutations";
 import { usePostBookmarkMutations } from "@/hooks/posts/usePostBookmarkMutations";
 import { usePostReactions } from "@/hooks/posts/usePostReactions";
@@ -45,6 +46,10 @@ export function PostActions({
   const { saveMutation, unsaveMutation } = usePostBookmarkMutations();
   const reactionsQuery = usePostReactions(postId);
   const bookmarkQuery = usePostBookmarkState(postId);
+
+  const reactionsLoading = reactionsQuery.isLoading || reactionsQuery.isFetching;
+  const bookmarkLoading = bookmarkQuery.isLoading || bookmarkQuery.isFetching;
+  const actionsLoading = reactionsLoading || bookmarkLoading;
 
   // Animation state
   const [likeAnim, setLikeAnim] = useState(false);
@@ -100,93 +105,116 @@ export function PostActions({
       isCompact ? "pt-3" : "pt-4",
     )}>
       {/* Left group: Like · Comment · Share */}
-      <div className="flex items-center gap-1">
-        {/* Like */}
+      {actionsLoading ? (
+        <div className="flex items-center gap-1">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className={cn(
+                "flex items-center gap-1.5 rounded-lg",
+                isCompact ? "px-2 py-1.5" : "px-3 py-2",
+              )}
+            >
+              <Skeleton className={isCompact ? "h-3.5 w-3.5 rounded-full" : "h-4 w-4 rounded-full"} />
+              <Skeleton className={isCompact ? "h-3 w-8" : "h-4 w-12"} />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="flex items-center gap-1">
+          {/* Like */}
+          <ActionButton
+            onClick={handleReact}
+            active={reacted}
+            activeColor="text-rose-500"
+            label={`${formatNumber(rxCount)} lượt thích`}
+            compact={isCompact}
+            className={cn(likeAnim && "animate-bounce-once")}
+          >
+            <Heart
+              className={cn(
+                "transition-all duration-200",
+                isCompact ? "w-4 h-4" : "w-5 h-5",
+                reacted ? "fill-rose-500 text-rose-500 scale-110" : "text-[#8b8fa8]",
+              )}
+            />
+            <span className={cn(
+              "tabular-nums transition-colors",
+              isCompact ? "text-xs" : "text-sm",
+              reacted ? "text-rose-500" : "text-[#8b8fa8]",
+            )}>
+              {formatNumber(rxCount)}
+            </span>
+          </ActionButton>
+
+          {/* Comment */}
+          <ActionButton
+            onClick={onCommentClick}
+            label={`${formatNumber(commentCount)} bình luận`}
+            compact={isCompact}
+          >
+            <MessageCircle className={cn(
+              "text-[#8b8fa8] transition-colors",
+              isCompact ? "w-4 h-4" : "w-5 h-5",
+            )} />
+            <span className={cn(
+              "tabular-nums text-[#8b8fa8]",
+              isCompact ? "text-xs" : "text-sm",
+            )}>
+              {formatNumber(commentCount)}
+            </span>
+          </ActionButton>
+
+          {/* Share */}
+          <ActionButton
+            onClick={onShareClick}
+            active={hasShared}
+            activeColor="text-[#f46d1b]"
+            label={`${formatNumber(shareCount)} lượt chia sẻ`}
+            compact={isCompact}
+          >
+            <Share2 className={cn(
+              "transition-all duration-200",
+              isCompact ? "w-4 h-4" : "w-5 h-5",
+              hasShared ? "fill-[#f46d1b] text-[#f46d1b] scale-110" : "text-[#8b8fa8]",
+            )} />
+            {shareCount > 0 && (
+              <span className={cn(
+                "tabular-nums",
+                isCompact ? "text-xs" : "text-sm",
+                hasShared ? "text-[#f46d1b]" : "text-[#8b8fa8]",
+              )}>
+                {formatNumber(shareCount)}
+              </span>
+            )}
+          </ActionButton>
+        </div>
+      )}
+
+      {/* Right: Save */}
+      {actionsLoading ? (
+        <div className={cn("flex items-center", isCompact ? "px-2 py-1.5" : "px-3 py-2")}>
+          <Skeleton className={isCompact ? "h-4 w-10" : "h-5 w-16 rounded-md"} />
+        </div>
+      ) : (
         <ActionButton
-          onClick={handleReact}
-          active={reacted}
-          activeColor="text-rose-500"
-          label={`${formatNumber(rxCount)} lượt thích`}
+          onClick={handleSave}
+          active={saved}
+          activeColor="text-[#f46d1b]"
+          label={saved ? "Bỏ lưu bài" : "Lưu bài"}
           compact={isCompact}
-          className={cn(likeAnim && "animate-bounce-once")}
         >
-          <Heart
+          <Bookmark
             className={cn(
               "transition-all duration-200",
               isCompact ? "w-4 h-4" : "w-5 h-5",
-              reacted ? "fill-rose-500 text-rose-500 scale-110" : "text-[#8b8fa8]",
+              saved
+                ? "fill-[#f46d1b] text-[#f46d1b] scale-110"
+                : "text-[#8b8fa8]",
             )}
           />
-          <span className={cn(
-            "tabular-nums transition-colors",
-            isCompact ? "text-xs" : "text-sm",
-            reacted ? "text-rose-500" : "text-[#8b8fa8]",
-          )}>
-            {formatNumber(rxCount)}
-          </span>
         </ActionButton>
-
-        {/* Comment */}
-        <ActionButton
-          onClick={onCommentClick}
-          label={`${formatNumber(commentCount)} bình luận`}
-          compact={isCompact}
-        >
-          <MessageCircle className={cn(
-            "text-[#8b8fa8] transition-colors",
-            isCompact ? "w-4 h-4" : "w-5 h-5",
-          )} />
-          <span className={cn(
-            "tabular-nums text-[#8b8fa8]",
-            isCompact ? "text-xs" : "text-sm",
-          )}>
-            {formatNumber(commentCount)}
-          </span>
-        </ActionButton>
-
-        {/* Share */}
-        <ActionButton
-          onClick={onShareClick}
-          active={hasShared}
-          activeColor="text-[#f46d1b]"
-          label={`${formatNumber(shareCount)} lượt chia sẻ`}
-          compact={isCompact}
-        >
-          <Share2 className={cn(
-            "transition-all duration-200",
-            isCompact ? "w-4 h-4" : "w-5 h-5",
-            hasShared ? "fill-[#f46d1b] text-[#f46d1b] scale-110" : "text-[#8b8fa8]",
-          )} />
-          {shareCount > 0 && (
-            <span className={cn(
-              "tabular-nums",
-              isCompact ? "text-xs" : "text-sm",
-              hasShared ? "text-[#f46d1b]" : "text-[#8b8fa8]",
-            )}>
-              {formatNumber(shareCount)}
-            </span>
-          )}
-        </ActionButton>
-      </div>
-
-      {/* Right: Save */}
-      <ActionButton
-        onClick={handleSave}
-        active={saved}
-        activeColor="text-[#f46d1b]"
-        label={saved ? "Bỏ lưu bài" : "Lưu bài"}
-        compact={isCompact}
-      >
-        <Bookmark
-          className={cn(
-            "transition-all duration-200",
-            isCompact ? "w-4 h-4" : "w-5 h-5",
-            saved
-              ? "fill-[#f46d1b] text-[#f46d1b] scale-110"
-              : "text-[#8b8fa8]",
-          )}
-        />
-      </ActionButton>
+      )}
     </div>
   );
 }
