@@ -1,30 +1,31 @@
 import { prisma } from "@/lib/prisma";
-import { supabaseAdmin } from "@/lib/supabase/admin";
 import { AppError } from "./shared/app-error";
 import { assertAuth, assertExists } from "./shared/assert";
-import { Prisma } from "@/generated/prisma/client";
-import type { reaction_type } from "@/generated/prisma/enums";
+import type {
+  reaction_target_type,
+  reaction_type,
+} from "@/generated/prisma/enums";
 
-// Lightweight in-memory cache for short-lived aggregates (best-effort)
-type CacheEntry<T> = { expiresAt: number; value: T };
-const aggregateCache = new Map<string, CacheEntry<any>>();
-const AGGREGATE_TTL = 5_000; // 5s
+type CacheEntry<T> = {
+  expiresAt: number;
+  value: T;
+};
 
-function cacheGet<T>(key: string): T | undefined {
-  const e = aggregateCache.get(key);
-  if (!e) return undefined;
-  if (Date.now() > e.expiresAt) {
-    aggregateCache.delete(key);
-    return undefined;
-  }
-  return e.value as T;
-}
+const aggregateCache = new Map<string, CacheEntry<ReactionSummaryDTO>>();
+const AGGREGATE_TTL = 5_000;
 
-function cacheSet<T>(key: string, value: T, ttl = AGGREGATE_TTL) {
-  aggregateCache.set(key, { value, expiresAt: Date.now() + ttl });
-}
+const REACTION_TYPES = [
+  "like",
+  "love",
+  "haha",
+  "wow",
+  "sad",
+  "angry",
+] as const;
 
-type ReactionCounts = Record<string, number> & {
+type KnownReactionType = (typeof REACTION_TYPES)[number];
+
+type ReactionCounts = Record<KnownReactionType, number> & {
   total: number;
 };
 
@@ -46,380 +47,719 @@ const REACTION_WEIGHTS: Record<string, number> = {
   angry: 0.2,
 };
 
-function computeEngagementScore(counts: Record<string, number>) {
-  let score = 0;
-  for (const [k, v] of Object.entries(counts)) {
-    const w = REACTION_WEIGHTS[k] ?? 1;
-    score += w * v;
+type ReactionTargetType = reaction_target_type;
+
+function cacheGet<T>(key: string): T | undefined {
+  const entry = aggregateCache.get(key);
+
+  if (!entry) return undefined;
+
+  if (Date.now() > entry.expiresAt) {
+    aggregateCache.delete(key);
+    return undefined;
   }
+
+  return entry.value as T;
+}
+
+function cacheSet(
+  key: string,
+  value: ReactionSummaryDTO,
+  ttl = AGGREGATE_TTL
+) {
+  aggregateCache.set(key, {
+    value,
+    expiresAt: Date.now() + ttl,
+  });
+}
+
+function invalidateReactionCache(
+  type: ReactionTargetType,
+  id: string
+) {
+  aggregateCache.delete(`${type}:${id}:agg`);
+}
+
+function computeEngagementScore(
+  counts: Partial<Record<KnownReactionType, number>> & {
+    total?: number;
+  }
+) {
+  let score = 0;
+
+  for (const [type, count] of Object.entries(counts)) {
+    if (type === "total") continue;
+    score += (REACTION_WEIGHTS[type] ?? 1) * count;
+  }
+
   return score;
 }
 
-async function loadPostForVisibility(postId: string) {
-  return prisma.posts.findUnique({ where: { id: postId } });
+async function loadPost(postId: string) {
+  return prisma.posts.findUnique({
+    where: { id: postId },
+  });
 }
 
-async function loadCommentForVisibility(commentId: string) {
-  return prisma.comments.findUnique({ where: { id: commentId } });
+async function loadComment(commentId: string) {
+  return prisma.comments.findUnique({
+    where: { id: commentId },
+  });
 }
 
-/**
- * Get aggregated reaction counts for a post (cached, best-effort).
- */
-export async function getPostReactionsSummary(postId: string, viewerId?: string | null): Promise<ReactionSummaryDTO> {
+function buildReactionSummary(
+  targetType: ReactionTargetType,
+  targetId: string,
+  rawCounts: Partial<Record<KnownReactionType, number>>,
+  viewerReaction?: string | null
+): ReactionSummaryDTO {
+  const counts: ReactionCounts = {
+    like: 0,
+    love: 0,
+    haha: 0,
+    wow: 0,
+    sad: 0,
+    angry: 0,
+    total: 0,
+  };
+
+  for (const type of REACTION_TYPES) {
+    counts[type] = rawCounts[type] ?? 0;
+    counts.total += counts[type];
+  }
+
+  const top = Object.entries(counts)
+    .filter(([type]) => type !== "total")
+    .map(([type, count]) => ({
+      type,
+      count,
+    }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 3);
+
+  return {
+    targetType,
+    targetId,
+    counts,
+    top,
+    viewerReaction: viewerReaction ?? null,
+    engagementScore: computeEngagementScore(counts),
+  };
+}
+
+async function getViewerReaction(
+  viewerId: string,
+  targetType: ReactionTargetType,
+  targetId: string
+) {
+  const reaction = await prisma.reactions.findFirst({
+    where: {
+      user_id: viewerId,
+      target_type: targetType,
+      target_id: targetId,
+    },
+    select: {
+      type: true,
+    },
+  });
+
+  return reaction?.type ?? null;
+}
+
+/* -------------------------------------------------------------------------- */
+/*                               POST SUMMARY                                 */
+/* -------------------------------------------------------------------------- */
+
+export async function getPostReactionsSummary(
+  postId: string,
+  viewerId?: string | null
+): Promise<ReactionSummaryDTO> {
+  assertExists(await loadPost(postId), "Post not found");
+
   const cacheKey = `post:${postId}:agg`;
+
   const cached = cacheGet<ReactionSummaryDTO>(cacheKey);
+
   if (cached) {
-    // attach viewerReaction from DB if viewer provided (not cached per-user)
     if (viewerId) {
-      const rec = await prisma.reactions.findUnique({
-        where: { user_id_post_id: { user_id: viewerId, post_id: postId } },
-        select: { type: true },
-      });
-      return { ...cached, viewerReaction: rec?.type ?? null };
+      const viewerReaction = await getViewerReaction(
+        viewerId,
+        "post",
+        postId
+      );
+
+      return {
+        ...cached,
+        viewerReaction,
+      };
     }
+
     return cached;
   }
 
-  // compute aggregates grouped by type
-  const groups = await prisma.reactions.groupBy({
-    by: ["type"],
-    where: { post_id: postId },
-    _count: { _all: true },
-  } as any);
+  const reactions = await prisma.reactions.findMany({
+    where: {
+      target_type: "post",
+      target_id: postId,
+    },
+    select: {
+      type: true,
+    },
+  });
 
-  const counts: Record<string, number> = {};
-  let total = 0;
-  for (const g of groups as any[]) {
-    const t = g.type as string;
-    const c = (g._count && g._count._all) ?? 0;
-    counts[t] = c;
-    total += c;
-  }
-
-  const allTypes = ["like", "love", "haha", "wow", "sad", "angry"];
-  for (const t of allTypes) counts[t] = counts[t] ?? 0;
-
-  const top = Object.entries(counts)
-    .map(([type, count]) => ({ type, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 3);
-
-  const engagementScore = computeEngagementScore(counts);
-
-  const dto: ReactionSummaryDTO = {
-    targetType: "post",
-    targetId: postId,
-    counts: { ...(counts as any), total },
-    top,
-    viewerReaction: null,
-    engagementScore,
+  const counts: ReactionCounts = {
+    like: 0,
+    love: 0,
+    haha: 0,
+    wow: 0,
+    sad: 0,
+    angry: 0,
+    total: 0,
   };
 
-  cacheSet(cacheKey, dto);
-
-  if (viewerId) {
-    const rec = await prisma.reactions.findUnique({
-      where: { user_id_post_id: { user_id: viewerId, post_id: postId } },
-      select: { type: true },
-    });
-    dto.viewerReaction = rec?.type ?? null;
+  for (const reaction of reactions) {
+    counts[reaction.type] += 1;
+    counts.total += 1;
   }
 
-  return dto;
+  const summary = buildReactionSummary(
+    "post",
+    postId,
+    counts
+  );
+
+  cacheSet(cacheKey, summary);
+
+  if (viewerId) {
+    summary.viewerReaction = await getViewerReaction(
+      viewerId,
+      "post",
+      postId
+    );
+  }
+
+  return summary;
 }
 
-/**
- * Get aggregated reaction counts for a comment (cached, best-effort).
- */
-export async function getCommentReactionsSummary(commentId: string, viewerId?: string | null): Promise<ReactionSummaryDTO> {
+/* -------------------------------------------------------------------------- */
+/*                              COMMENT SUMMARY                               */
+/* -------------------------------------------------------------------------- */
+
+export async function getCommentReactionsSummary(
+  commentId: string,
+  viewerId?: string | null
+): Promise<ReactionSummaryDTO> {
+  assertExists(await loadComment(commentId), "Comment not found");
+
   const cacheKey = `comment:${commentId}:agg`;
+
   const cached = cacheGet<ReactionSummaryDTO>(cacheKey);
+
   if (cached) {
     if (viewerId) {
-      const rec = await prisma.reactions.findUnique({
-        where: { user_id_comment_id: { user_id: viewerId, comment_id: commentId } },
-        select: { type: true },
-      });
-      return { ...cached, viewerReaction: rec?.type ?? null };
+      const viewerReaction = await getViewerReaction(
+        viewerId,
+        "comment",
+        commentId
+      );
+
+      return {
+        ...cached,
+        viewerReaction,
+      };
     }
+
     return cached;
   }
 
-  const groups = await prisma.reactions.groupBy({
-    by: ["type"],
-    where: { comment_id: commentId },
-    _count: { _all: true },
-  } as any);
+  const reactions = await prisma.reactions.findMany({
+    where: {
+      target_type: "comment",
+      target_id: commentId,
+    },
+    select: {
+      type: true,
+    },
+  });
 
-  const counts: Record<string, number> = {};
-  let total = 0;
-  for (const g of groups as any[]) {
-    const t = g.type as string;
-    const c = (g._count && g._count._all) ?? 0;
-    counts[t] = c;
-    total += c;
-  }
-
-  const allTypes = ["like", "love", "haha", "wow", "sad", "angry"];
-  for (const t of allTypes) counts[t] = counts[t] ?? 0;
-
-  const top = Object.entries(counts)
-    .map(([type, count]) => ({ type, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 3);
-
-  const engagementScore = computeEngagementScore(counts);
-
-  const dto: ReactionSummaryDTO = {
-    targetType: "comment",
-    targetId: commentId,
-    counts: { ...(counts as any), total },
-    top,
-    viewerReaction: null,
-    engagementScore,
+  const counts: ReactionCounts = {
+    like: 0,
+    love: 0,
+    haha: 0,
+    wow: 0,
+    sad: 0,
+    angry: 0,
+    total: 0,
   };
 
-  cacheSet(cacheKey, dto);
-
-  if (viewerId) {
-    const rec = await prisma.reactions.findUnique({
-      where: { user_id_comment_id: { user_id: viewerId, comment_id: commentId } },
-      select: { type: true },
-    });
-    dto.viewerReaction = rec?.type ?? null;
+  for (const reaction of reactions) {
+    counts[reaction.type] += 1;
+    counts.total += 1;
   }
 
-  return dto;
+  const summary = buildReactionSummary(
+    "comment",
+    commentId,
+    counts
+  );
+
+  cacheSet(cacheKey, summary);
+
+  if (viewerId) {
+    summary.viewerReaction = await getViewerReaction(
+      viewerId,
+      "comment",
+      commentId
+    );
+  }
+
+  return summary;
 }
 
-/**
- * Toggle or set a reaction on a post.
- * If user reacts with the same type => remove (unreact).
- * If user reacts with a different type => update to new type.
- */
-export async function reactToPost(actorId: string, postId: string, type: reaction_type) {
+/* -------------------------------------------------------------------------- */
+/*                                REACT POST                                  */
+/* -------------------------------------------------------------------------- */
+
+export async function reactToPost(
+  actorId: string,
+  postId: string,
+  type: reaction_type
+) {
   assertAuth(actorId);
-  if (!postId) throw new AppError("postId is required", 400, "INVALID_INPUT");
 
-  const post = assertExists(await loadPostForVisibility(postId), "Post not found");
+  if (!postId) {
+    throw new AppError(
+      "postId is required",
+      400,
+      "INVALID_INPUT"
+    );
+  }
 
-  // permission checks: hidden/deleted posts only owner or admin
+  const post = assertExists(
+    await loadPost(postId),
+    "Post not found"
+  );
+
   if (post.status !== "active") {
     if (post.user_id !== actorId) {
-      const viewer = await prisma.users.findUnique({ where: { id: actorId } });
-      if (!viewer || viewer.role !== "admin") throw new AppError("Not found", 404, "NOT_FOUND");
-    }
-  }
-
-  try {
-    const result = await prisma.$transaction(async (tx) => {
-      const existing = await tx.reactions.findUnique({
-        where: { user_id_post_id: { user_id: actorId, post_id: postId } },
+      const viewer = await prisma.users.findUnique({
+        where: {
+          id: actorId,
+        },
       });
 
-      // toggle: same reaction => delete
-      if (existing) {
-        if (existing.type === type) {
-          await tx.reactions.delete({ where: { id: existing.id } });
-          // invalidate cache
-          aggregateCache.delete(`post:${postId}:agg`);
-          // do not create notifications for removals
-          return { action: "removed" as const };
-        }
-
-        // update to new type
-        await tx.reactions.update({ where: { id: existing.id }, data: { type } });
-        aggregateCache.delete(`post:${postId}:agg`);
-        try {
-          if (post.user_id !== actorId) {
-            await tx.notifications.create({ data: { user_id: post.user_id, type: "post_reaction", title: null, body: null, data: { postId, userId: actorId, type } } });
-          }
-        } catch { }
-
-        return { action: "updated" as const };
+      if (!viewer || viewer.role !== "admin") {
+        throw new AppError(
+          "Not found",
+          404,
+          "NOT_FOUND"
+        );
       }
+    }
+  }
 
-      // create
-      await tx.reactions.create({ data: { user_id: actorId, post_id: postId, type } });
-      aggregateCache.delete(`post:${postId}:agg`);
-
-      try {
-        if (post.user_id !== actorId) {
-          await tx.notifications.create({ data: { user_id: post.user_id, type: "post_reaction", title: null, body: null, data: { postId, userId: actorId, type } } });
-        }
-      } catch { }
-
-      return { action: "added" as const };
+  const result = await prisma.$transaction(async (tx) => {
+    const existing = await tx.reactions.findFirst({
+      where: {
+        user_id: actorId,
+        target_type: "post",
+        target_id: postId,
+      },
     });
 
-    // best-effort realtime / analytics hooks (non-blocking)
-    try {
-      void supabaseAdmin; // placeholder to indicate server-side admin client available
-    } catch { }
+    if (existing) {
+      if (existing.type === type) {
+        await tx.reactions.delete({
+          where: {
+            id: existing.id,
+          },
+        });
 
-    // return fresh aggregate
-    const summary = await getPostReactionsSummary(postId, actorId);
-    return { result, summary };
-  } catch (err: any) {
-    // unique-constraint race: treat as already reacted
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-      const summary = await getPostReactionsSummary(postId, actorId);
-      return { result: { action: "added" as const }, summary };
+        invalidateReactionCache("post", postId);
+
+        return {
+          action: "removed" as const,
+        };
+      }
+
+      await tx.reactions.update({
+        where: {
+          id: existing.id,
+        },
+        data: {
+          type,
+        },
+      });
+
+      invalidateReactionCache("post", postId);
+
+      return {
+        action: "updated" as const,
+      };
     }
-    throw err;
-  }
+
+    await tx.reactions.create({
+      data: {
+        user_id: actorId,
+        target_type: "post",
+        target_id: postId,
+        type,
+      },
+    });
+
+    invalidateReactionCache("post", postId);
+
+    if (post.user_id !== actorId) {
+      try {
+        await tx.notifications.create({
+          data: {
+            user_id: post.user_id,
+            type: "post_reaction",
+            title: null,
+            body: null,
+            data: {
+              postId,
+              userId: actorId,
+              type,
+            },
+          },
+        });
+      } catch { }
+    }
+
+    return {
+      action: "added" as const,
+    };
+  });
+
+  const summary = await getPostReactionsSummary(
+    postId,
+    actorId
+  );
+
+  return {
+    result,
+    summary,
+  };
 }
 
-/**
- * Toggle or set a reaction on a comment.
- */
-export async function reactToComment(actorId: string, commentId: string, type: reaction_type) {
+/* -------------------------------------------------------------------------- */
+/*                               REACT COMMENT                                */
+/* -------------------------------------------------------------------------- */
+
+export async function reactToComment(
+  actorId: string,
+  commentId: string,
+  type: reaction_type
+) {
   assertAuth(actorId);
-  if (!commentId) throw new AppError("commentId is required", 400, "INVALID_INPUT");
 
-  const comment = assertExists(await loadCommentForVisibility(commentId), "Comment not found");
+  if (!commentId) {
+    throw new AppError(
+      "commentId is required",
+      400,
+      "INVALID_INPUT"
+    );
+  }
 
-  // permission checks similar to comments
+  const comment = assertExists(
+    await loadComment(commentId),
+    "Comment not found"
+  );
+
   if (comment.is_deleted) {
     if (comment.user_id !== actorId) {
-      const viewer = await prisma.users.findUnique({ where: { id: actorId } });
-      if (!viewer || viewer.role !== "admin") throw new AppError("Not found", 404, "NOT_FOUND");
+      const viewer = await prisma.users.findUnique({
+        where: {
+          id: actorId,
+        },
+      });
+
+      if (!viewer || viewer.role !== "admin") {
+        throw new AppError(
+          "Not found",
+          404,
+          "NOT_FOUND"
+        );
+      }
     }
   }
 
-  try {
-    const result = await prisma.$transaction(async (tx) => {
-      const existing = await tx.reactions.findUnique({ where: { user_id_comment_id: { user_id: actorId, comment_id: commentId } } });
-
-      if (existing) {
-        if (existing.type === type) {
-          await tx.reactions.delete({ where: { id: existing.id } });
-          aggregateCache.delete(`comment:${commentId}:agg`);
-          // no notifications for removals
-          return { action: "removed" as const };
-        }
-
-        await tx.reactions.update({ where: { id: existing.id }, data: { type } });
-        aggregateCache.delete(`comment:${commentId}:agg`);
-        try {
-          if (comment.user_id !== actorId) {
-            await tx.notifications.create({ data: { user_id: comment.user_id, type: "post_reaction", title: null, body: null, data: { commentId, userId: actorId, type } } });
-          }
-        } catch { }
-        return { action: "updated" as const };
-      }
-
-      await tx.reactions.create({ data: { user_id: actorId, comment_id: commentId, type } });
-      aggregateCache.delete(`comment:${commentId}:agg`);
-      try {
-        if (comment.user_id !== actorId) {
-          await tx.notifications.create({ data: { user_id: comment.user_id, type: "post_reaction", title: null, body: null, data: { commentId, userId: actorId, type } } });
-        }
-      } catch { }
-      return { action: "added" as const };
+  const result = await prisma.$transaction(async (tx) => {
+    const existing = await tx.reactions.findFirst({
+      where: {
+        user_id: actorId,
+        target_type: "comment",
+        target_id: commentId,
+      },
     });
 
-    try {
-      void supabaseAdmin;
-    } catch { }
+    if (existing) {
+      if (existing.type === type) {
+        await tx.reactions.delete({
+          where: {
+            id: existing.id,
+          },
+        });
 
-    const summary = await getCommentReactionsSummary(commentId, actorId);
-    return { result, summary };
-  } catch (err: any) {
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-      const summary = await getCommentReactionsSummary(commentId, actorId);
-      return { result: { action: "added" as const }, summary };
+        invalidateReactionCache(
+          "comment",
+          commentId
+        );
+
+        return {
+          action: "removed" as const,
+        };
+      }
+
+      await tx.reactions.update({
+        where: {
+          id: existing.id,
+        },
+        data: {
+          type,
+        },
+      });
+
+      invalidateReactionCache(
+        "comment",
+        commentId
+      );
+
+      return {
+        action: "updated" as const,
+      };
     }
-    throw err;
+
+    await tx.reactions.create({
+      data: {
+        user_id: actorId,
+        target_type: "comment",
+        target_id: commentId,
+        type,
+      },
+    });
+
+    invalidateReactionCache(
+      "comment",
+      commentId
+    );
+
+    if (comment.user_id !== actorId) {
+      try {
+        await tx.notifications.create({
+          data: {
+            user_id: comment.user_id,
+            type: "post_reaction",
+            title: null,
+            body: null,
+            data: {
+              commentId,
+              userId: actorId,
+              type,
+            },
+          },
+        });
+      } catch { }
+    }
+
+    return {
+      action: "added" as const,
+    };
+  });
+
+  const summary =
+    await getCommentReactionsSummary(
+      commentId,
+      actorId
+    );
+
+  return {
+    result,
+    summary,
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/*                             REMOVE REACTIONS                               */
+/* -------------------------------------------------------------------------- */
+
+export async function removeReactionFromPost(
+  actorId: string,
+  postId: string
+) {
+  assertAuth(actorId);
+
+  const existing = await prisma.reactions.findFirst({
+    where: {
+      user_id: actorId,
+      target_type: "post",
+      target_id: postId,
+    },
+  });
+
+  if (!existing) {
+    return {
+      removed: false,
+    };
   }
-}
 
-/**
- * Remove reaction explicitly (if present).
- */
-export async function removeReactionFromPost(actorId: string, postId: string) {
-  assertAuth(actorId);
-  const existing = await prisma.reactions.findUnique({ where: { user_id_post_id: { user_id: actorId, post_id: postId } } });
-  if (!existing) return { removed: false };
-  await prisma.$transaction(async (tx) => {
-    await tx.reactions.delete({ where: { id: existing.id } });
-    // removal: no notification created for unreact
+  await prisma.reactions.delete({
+    where: {
+      id: existing.id,
+    },
   });
-  aggregateCache.delete(`post:${postId}:agg`);
-  return { removed: true };
+
+  invalidateReactionCache("post", postId);
+
+  return {
+    removed: true,
+  };
 }
 
-export async function removeReactionFromComment(actorId: string, commentId: string) {
+export async function removeReactionFromComment(
+  actorId: string,
+  commentId: string
+) {
   assertAuth(actorId);
-  const existing = await prisma.reactions.findUnique({ where: { user_id_comment_id: { user_id: actorId, comment_id: commentId } } });
-  if (!existing) return { removed: false };
-  await prisma.$transaction(async (tx) => {
-    await tx.reactions.delete({ where: { id: existing.id } });
-    // removal: no notification created for unreact
+
+  const existing = await prisma.reactions.findFirst({
+    where: {
+      user_id: actorId,
+      target_type: "comment",
+      target_id: commentId,
+    },
   });
-  aggregateCache.delete(`comment:${commentId}:agg`);
-  return { removed: true };
+
+  if (!existing) {
+    return {
+      removed: false,
+    };
+  }
+
+  await prisma.reactions.delete({
+    where: {
+      id: existing.id,
+    },
+  });
+
+  invalidateReactionCache(
+    "comment",
+    commentId
+  );
+
+  return {
+    removed: true,
+  };
 }
 
-/**
- * Batch enrich posts array with reaction summaries and viewer reactions.
- * Returns a new array of posts where each post has `reactionSummary` property.
- */
-export async function enrichPostsWithReactions<T extends { id: string }>(viewerId: string | null | undefined, posts: T[]): Promise<(T & { reactionSummary: ReactionSummaryDTO | null })[]> {
-  const postIds = posts.map((p) => p.id);
-  if (!postIds.length) return posts.map((p) => ({ ...p, reactionSummary: null }));
+/* -------------------------------------------------------------------------- */
+/*                         ENRICH POSTS WITH REACTIONS                        */
+/* -------------------------------------------------------------------------- */
 
-  // fetch viewer reactions in batch
-  const viewerRecs = viewerId
-    ? await prisma.reactions.findMany({ where: { user_id: viewerId, post_id: { in: postIds } }, select: { post_id: true, type: true } })
+export async function enrichPostsWithReactions<
+  T extends { id: string }
+>(
+  viewerId: string | null | undefined,
+  posts: T[]
+): Promise<
+  (T & {
+    reactionSummary: ReactionSummaryDTO | null;
+  })[]
+> {
+  const postIds = posts.map((post) => post.id);
+
+  if (!postIds.length) {
+    return posts.map((post) => ({
+      ...post,
+      reactionSummary: null,
+    }));
+  }
+
+  const viewerReactions = viewerId
+    ? await prisma.reactions.findMany({
+      where: {
+        user_id: viewerId,
+        target_type: "post",
+        target_id: {
+          in: postIds,
+        },
+      },
+      select: {
+        target_id: true,
+        type: true,
+      },
+    })
     : [];
 
   const viewerMap = new Map<string, string>();
-  for (const r of viewerRecs) if (r.post_id) viewerMap.set(r.post_id, r.type);
 
-  // group counts by post_id & type
-  const groups = await prisma.reactions.groupBy({
-    by: ["post_id", "type"],
-    where: { post_id: { in: postIds } },
-    _count: { _all: true },
-  } as any);
-
-  const aggMap = new Map<string, Record<string, number>>();
-  for (const g of groups as any[]) {
-    const pid = g.post_id as string;
-    const t = g.type as string;
-    const c = (g._count && g._count._all) ?? 0;
-    const rec = aggMap.get(pid) ?? {};
-    rec[t] = (rec[t] ?? 0) + c;
-    aggMap.set(pid, rec);
+  for (const reaction of viewerReactions) {
+    if (reaction.target_id) {
+      viewerMap.set(
+        reaction.target_id,
+        reaction.type
+      );
+    }
   }
 
-  return posts.map((p) => {
-    const countsRaw = aggMap.get(p.id) ?? {};
-    const allTypes = ["like", "love", "haha", "wow", "sad", "angry"];
-    const counts: Record<string, number> = {};
-    let total = 0;
-    for (const t of allTypes) {
-      counts[t] = countsRaw[t] ?? 0;
-      total += counts[t];
-    }
-    const top = Object.entries(counts).map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count).slice(0, 3);
-    const engagementScore = computeEngagementScore(counts);
+  const reactions = await prisma.reactions.findMany({
+    where: {
+      target_type: "post",
+      target_id: {
+        in: postIds,
+      },
+    },
+    select: {
+      target_id: true,
+      type: true,
+    },
+  });
 
-    const summary: ReactionSummaryDTO = {
-      targetType: "post",
-      targetId: p.id,
-      counts: { ...(counts as any), total },
-      top,
-      viewerReaction: viewerMap.get(p.id) ?? null,
-      engagementScore,
+  const aggregateMap = new Map<string, ReactionCounts>();
+
+  for (const reaction of reactions) {
+    const current =
+      aggregateMap.get(reaction.target_id) ?? {
+        like: 0,
+        love: 0,
+        haha: 0,
+        wow: 0,
+        sad: 0,
+        angry: 0,
+        total: 0,
+      };
+
+    current[reaction.type] += 1;
+    current.total += 1;
+    aggregateMap.set(reaction.target_id, current);
+  }
+
+  return posts.map((post) => {
+    const counts =
+      aggregateMap.get(post.id) ?? {
+        like: 0,
+        love: 0,
+        haha: 0,
+        wow: 0,
+        sad: 0,
+        angry: 0,
+        total: 0,
+      };
+
+    const summary = buildReactionSummary(
+      "post",
+      post.id,
+      counts,
+      viewerMap.get(post.id) ?? null
+    );
+
+    cacheSet(`post:${post.id}:agg`, summary);
+
+    return {
+      ...post,
+      reactionSummary: summary,
     };
-
-    // best-effort cache
-    cacheSet(`post:${p.id}:agg`, summary);
-
-    return { ...p, reactionSummary: summary } as T & { reactionSummary: ReactionSummaryDTO };
   });
 }
 

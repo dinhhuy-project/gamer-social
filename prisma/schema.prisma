@@ -11,19 +11,18 @@ datasource db {
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model comments {
-  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  post_id        String      @db.Uuid
-  user_id        String      @db.Uuid
-  parent_id      String?     @db.Uuid
+  id             String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  post_id        String     @db.Uuid
+  user_id        String     @db.Uuid
+  parent_id      String?    @db.Uuid
   content        String
-  is_deleted     Boolean     @default(false)
-  created_at     DateTime    @default(now()) @db.Timestamptz(6)
-  updated_at     DateTime    @default(now()) @db.Timestamptz(6)
-  comments       comments?   @relation("commentsTocomments", fields: [parent_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  other_comments comments[]  @relation("commentsTocomments")
-  posts          posts       @relation(fields: [post_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  users          users       @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  reactions      reactions[]
+  is_deleted     Boolean    @default(false)
+  created_at     DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime   @default(now()) @db.Timestamptz(6)
+  comments       comments?  @relation("commentsTocomments", fields: [parent_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  other_comments comments[] @relation("commentsTocomments")
+  posts          posts      @relation(fields: [post_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users          users      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([post_id, created_at], map: "idx_comments_post")
 }
@@ -180,7 +179,6 @@ model posts {
   post_tags                              post_tags[]
   users_posts_listing_reviewed_byTousers users?                   @relation("posts_listing_reviewed_byTousers", fields: [listing_reviewed_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
   users_posts_user_idTousers             users                    @relation("posts_user_idTousers", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  reactions                              reactions[]
   saved_posts                            saved_posts[]
 
   @@index([search_vector], map: "idx_posts_fts", type: Gin)
@@ -190,18 +188,18 @@ model posts {
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model reactions {
-  id         String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id    String        @db.Uuid
-  post_id    String?       @db.Uuid
-  comment_id String?       @db.Uuid
-  type       reaction_type
-  created_at DateTime      @default(now()) @db.Timestamptz(6)
-  comments   comments?     @relation(fields: [comment_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  posts      posts?        @relation(fields: [post_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  users      users         @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id          String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id     String               @db.Uuid
+  target_type reaction_target_type
+  target_id   String               @db.Uuid
+  type        reaction_type
+  created_at  DateTime             @default(now()) @db.Timestamptz(6)
+  users       users                @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "reactions_user_fk")
 
-  @@unique([user_id, comment_id])
-  @@unique([user_id, post_id])
+  @@unique([user_id, target_type, target_id], map: "reactions_unique_target")
+  @@index([created_at(sort: Desc)])
+  @@index([target_type, target_id], map: "reactions_target_idx")
+  @@index([user_id], map: "reactions_user_idx")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -321,4 +319,9 @@ enum user_role {
   user
   member
   admin
+}
+
+enum reaction_target_type {
+  post
+  comment
 }

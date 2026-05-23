@@ -1,60 +1,87 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type { ReactionSummaryDTO, ReactionType } from "@/types/api.types";
+import {
+  applyReactionOptimisticUpdate,
+  getOptimisticReactionAction,
+  reactToReaction,
+  reactionSummaryKey,
+  removeReactionFromTarget,
+} from "@/hooks/reactions/reaction-api";
 
-async function commentReactApi(commentId: string, type: string) {
-  const res = await fetch(`/api/comments/${encodeURIComponent(commentId)}/reactions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "same-origin",
-    body: JSON.stringify({ type }),
-  });
+type CommentReactionVariables = {
+  commentId: string;
+  type: ReactionType;
+};
 
-  if (res.status === 401) throw new Error("Unauthorized");
-  if (res.status === 404) throw new Error("Not found");
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    const msg = payload?.error || (await res.text());
-    throw new Error(msg || "Failed to react to comment");
-  }
-
-  return await res.json();
-}
-
-async function deleteCommentReactApi(commentId: string) {
-  const res = await fetch(`/api/comments/${encodeURIComponent(commentId)}/reactions`, {
-    method: "DELETE",
-    credentials: "same-origin",
-  });
-
-  if (res.status === 401) throw new Error("Unauthorized");
-  if (res.status === 404) throw new Error("Not found");
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    const msg = payload?.error || (await res.text());
-    throw new Error(msg || "Failed to remove reaction");
-  }
-
-  return await res.json();
-}
+type CommentReactionContext = {
+  previous: ReactionSummaryDTO | undefined;
+};
 
 export function useCommentReactionMutations() {
   const qc = useQueryClient();
 
-  const reactMutation = useMutation<any, Error, { commentId: string; type: string }>({
-    mutationFn: ({ commentId, type }) => commentReactApi(commentId, type),
-    onSuccess: (_data, variables) => {
-      qc.invalidateQueries({ queryKey: ["commentReactions", variables.commentId] });
+  const reactMutation = useMutation<
+    Awaited<ReturnType<typeof reactToReaction>>,
+    Error,
+    CommentReactionVariables,
+    CommentReactionContext
+  >({
+    mutationFn: ({ commentId, type }) => reactToReaction("comment", commentId, type),
+    onMutate: async ({ commentId, type }) => {
+      const reactionKey = reactionSummaryKey("comment", commentId);
+      await qc.cancelQueries({ queryKey: reactionKey });
+
+      const previous = qc.getQueryData<ReactionSummaryDTO>(reactionKey);
+      const optimisticAction = getOptimisticReactionAction(previous, type);
+
+      qc.setQueryData<ReactionSummaryDTO | undefined>(
+        reactionKey,
+        (current) => applyReactionOptimisticUpdate(current, optimisticAction, type)
+      );
+
+      return { previous };
+    },
+    onError: (_error, variables, context) => {
+      if (context?.previous) {
+        qc.setQueryData(reactionSummaryKey("comment", variables.commentId), context.previous);
+      }
+    },
+    onSettled: (_data, _error, variables) => {
+      qc.invalidateQueries({ queryKey: reactionSummaryKey("comment", variables.commentId) });
       qc.invalidateQueries({ queryKey: ["comment", variables.commentId] });
       qc.invalidateQueries({ queryKey: ["comments"] });
       qc.invalidateQueries({ queryKey: ["posts"] });
     },
   });
 
-  const removeMutation = useMutation<any, Error, string>({
-    mutationFn: (commentId) => deleteCommentReactApi(commentId),
-    onSuccess: (_data, commentId) => {
-      qc.invalidateQueries({ queryKey: ["commentReactions", commentId] });
+  const removeMutation = useMutation<
+    Awaited<ReturnType<typeof removeReactionFromTarget>>,
+    Error,
+    string,
+    CommentReactionContext
+  >({
+    mutationFn: (commentId) => removeReactionFromTarget("comment", commentId),
+    onMutate: async (commentId) => {
+      const reactionKey = reactionSummaryKey("comment", commentId);
+      await qc.cancelQueries({ queryKey: reactionKey });
+
+      const previous = qc.getQueryData<ReactionSummaryDTO>(reactionKey);
+
+      qc.setQueryData<ReactionSummaryDTO | undefined>(reactionKey, (current) =>
+        applyReactionOptimisticUpdate(current, "removed", previous?.viewerReaction ?? "like")
+      );
+
+      return { previous };
+    },
+    onError: (_error, commentId, context) => {
+      if (context?.previous) {
+        qc.setQueryData(reactionSummaryKey("comment", commentId), context.previous);
+      }
+    },
+    onSettled: (_data, _error, commentId) => {
+      qc.invalidateQueries({ queryKey: reactionSummaryKey("comment", commentId) });
       qc.invalidateQueries({ queryKey: ["comment", commentId] });
       qc.invalidateQueries({ queryKey: ["comments"] });
       qc.invalidateQueries({ queryKey: ["posts"] });
@@ -64,7 +91,8 @@ export function useCommentReactionMutations() {
   return {
     reactMutation,
     removeMutation,
-    react: (commentId: string, type: string) => reactMutation.mutate({ commentId, type }),
+    react: (commentId: string, type: ReactionType) =>
+      reactMutation.mutate({ commentId, type }),
     remove: (commentId: string) => removeMutation.mutate(commentId),
   };
 }

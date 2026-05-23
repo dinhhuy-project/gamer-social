@@ -1,3 +1,4 @@
+import { ZodError } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { reactionService } from "@/lib/services/reaction.service";
@@ -5,86 +6,162 @@ import { authService } from "@/lib/services/index";
 import { AppError, NotFoundError } from "@/lib/services/shared/app-error";
 import { reactionSchema } from "@/lib/validations/reaction.schema";
 
+type RouteContext = {
+  params?: Promise<{ id?: string }> | { id?: string };
+};
+
+async function resolveId(
+  request: Request,
+  context: RouteContext,
+  segment: "posts" | "comments"
+) {
+  const params = await context.params;
+  const id = params?.id;
+
+  if (id) return id;
+
+  const url = new URL(request.url);
+  const parts = url.pathname.split("/").filter(Boolean);
+  const index = parts.findIndex((part) => part === segment);
+
+  if (index >= 0 && parts[index + 1]) {
+    return parts[index + 1];
+  }
+
+  return undefined;
+}
+
+async function getOptionalViewer() {
+  const supabase = await createClient();
+  const response = await supabase.auth.getUser();
+
+  if (response.error || !response.data.user) {
+    return null;
+  }
+
+  return authService.getCurrentUserFromSupabaseUser(response.data.user);
+}
+
+async function getRequiredViewer() {
+  const supabase = await createClient();
+  const response = await supabase.auth.getUser();
+
+  if (response.error || !response.data.user) {
+    return null;
+  }
+
+  return authService.getCurrentUserFromSupabaseUser(response.data.user);
+}
+
 export async function GET(
-  _request: Request,
-  { params }: { params: { id: string } }
+  request: Request,
+  context: RouteContext
 ) {
   try {
-    const id = params.id;
-    if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
+    const id = await resolveId(request, context, "comments");
 
-    // optional auth
-    const supabase = await createClient();
-    const resp = await supabase.auth.getUser();
-    const supaUser = resp?.data?.user ?? null;
-    const error = resp?.error ?? null;
+    if (!id) {
+      return NextResponse.json({ error: "Missing id" }, { status: 400 });
+    }
 
-    let viewer: any = null;
-    if (!error && supaUser) viewer = await authService.getCurrentUserFromSupabaseUser(supaUser);
+    const viewer = await getOptionalViewer();
+    const summary = await reactionService.getCommentReactionsSummary(
+      id,
+      viewer?.id ?? null
+    );
 
-    const summary = await reactionService.getCommentReactionsSummary(id, viewer?.id ?? null);
     return NextResponse.json(summary);
-  } catch (err: any) {
+  } catch (err) {
     console.error("GET /api/comments/[id]/reactions error:", err);
-    if (err instanceof NotFoundError) return NextResponse.json({ error: err.message }, { status: 404 });
-    if (err instanceof AppError) return NextResponse.json({ error: err.message }, { status: err.statusCode });
+
+    if (err instanceof NotFoundError) {
+      return NextResponse.json({ error: err.message }, { status: 404 });
+    }
+
+    if (err instanceof AppError) {
+      return NextResponse.json({ error: err.message }, { status: err.statusCode });
+    }
+
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  context: RouteContext
 ) {
   try {
-    const id = params.id;
-    if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
+    const id = await resolveId(request, context, "comments");
 
-    const supabase = await createClient();
-    const resp = await supabase.auth.getUser();
-    const supaUser = resp?.data?.user ?? null;
-    const error = resp?.error ?? null;
-    if (error || !supaUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!id) {
+      return NextResponse.json({ error: "Missing id" }, { status: 400 });
+    }
 
-    const current = await authService.getCurrentUserFromSupabaseUser(supaUser);
-    if (!current) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+    const current = await getRequiredViewer();
+
+    if (!current) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     const body = await request.json();
     const parsed = reactionSchema.parse(body);
 
-    const res = await reactionService.reactToComment(current.id, id, parsed.type as any);
+    const res = await reactionService.reactToComment(current.id, id, parsed.type);
+
     return NextResponse.json(res);
-  } catch (err: any) {
+  } catch (err) {
     console.error("POST /api/comments/[id]/reactions error:", err);
-    if (err instanceof NotFoundError) return NextResponse.json({ error: err.message }, { status: 404 });
-    if (err instanceof AppError) return NextResponse.json({ error: err.message }, { status: err.statusCode });
+
+    if (err instanceof ZodError) {
+      return NextResponse.json(
+        { error: "Invalid input", details: err.issues },
+        { status: 400 }
+      );
+    }
+
+    if (err instanceof NotFoundError) {
+      return NextResponse.json({ error: err.message }, { status: 404 });
+    }
+
+    if (err instanceof AppError) {
+      return NextResponse.json({ error: err.message }, { status: err.statusCode });
+    }
+
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
 
 export async function DELETE(
-  _request: Request,
-  { params }: { params: { id: string } }
+  request: Request,
+  context: RouteContext
 ) {
   try {
-    const id = params.id;
-    if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
+    const id = await resolveId(request, context, "comments");
 
-    const supabase = await createClient();
-    const resp = await supabase.auth.getUser();
-    const supaUser = resp?.data?.user ?? null;
-    const error = resp?.error ?? null;
-    if (error || !supaUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!id) {
+      return NextResponse.json({ error: "Missing id" }, { status: 400 });
+    }
 
-    const current = await authService.getCurrentUserFromSupabaseUser(supaUser);
-    if (!current) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+    const current = await getRequiredViewer();
+
+    if (!current) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     const deleted = await reactionService.removeReactionFromComment(current.id, id);
+
     return NextResponse.json(deleted);
-  } catch (err: any) {
+  } catch (err) {
     console.error("DELETE /api/comments/[id]/reactions error:", err);
-    if (err instanceof NotFoundError) return NextResponse.json({ error: err.message }, { status: 404 });
-    if (err instanceof AppError) return NextResponse.json({ error: err.message }, { status: err.statusCode });
+
+    if (err instanceof NotFoundError) {
+      return NextResponse.json({ error: err.message }, { status: 404 });
+    }
+
+    if (err instanceof AppError) {
+      return NextResponse.json({ error: err.message }, { status: err.statusCode });
+    }
+
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

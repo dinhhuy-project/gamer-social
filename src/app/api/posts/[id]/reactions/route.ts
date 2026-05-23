@@ -1,3 +1,4 @@
+import { ZodError } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { reactionService } from "@/lib/services/reaction.service";
@@ -5,116 +6,162 @@ import { authService } from "@/lib/services/index";
 import { AppError, NotFoundError } from "@/lib/services/shared/app-error";
 import { reactionSchema } from "@/lib/validations/reaction.schema";
 
+type RouteContext = {
+  params?: Promise<{ id?: string }> | { id?: string };
+};
+
+async function resolveId(
+  request: Request,
+  context: RouteContext,
+  segment: "posts" | "comments"
+) {
+  const params = await context.params;
+  const id = params?.id;
+
+  if (id) return id;
+
+  const url = new URL(request.url);
+  const parts = url.pathname.split("/").filter(Boolean);
+  const index = parts.findIndex((part) => part === segment);
+
+  if (index >= 0 && parts[index + 1]) {
+    return parts[index + 1];
+  }
+
+  return undefined;
+}
+
+async function getOptionalViewer() {
+  const supabase = await createClient();
+  const response = await supabase.auth.getUser();
+
+  if (response.error || !response.data.user) {
+    return null;
+  }
+
+  return authService.getCurrentUserFromSupabaseUser(response.data.user);
+}
+
+async function getRequiredViewer() {
+  const supabase = await createClient();
+  const response = await supabase.auth.getUser();
+
+  if (response.error || !response.data.user) {
+    return null;
+  }
+
+  return authService.getCurrentUserFromSupabaseUser(response.data.user);
+}
+
 export async function GET(
-  _request: Request,
-  context: { params?: any }
+  request: Request,
+  context: RouteContext
 ) {
   try {
-    const params = await context?.params;
-    let id = params?.id;
-    // fallback: parse id from URL when params not provided (robustness for some runtimes)
+    const id = await resolveId(request, context, "posts");
+
     if (!id) {
-      try {
-        const url = new URL(_request.url);
-        const segs = url.pathname.split("/").filter(Boolean);
-        const postsIndex = segs.findIndex((s) => s === "posts");
-        if (postsIndex >= 0 && segs.length > postsIndex + 1) id = segs[postsIndex + 1];
-      } catch (e) {
-        // ignore
-      }
+      return NextResponse.json({ error: "Missing id" }, { status: 400 });
     }
-    if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
 
-    // optional auth
-    const supabase = await createClient();
-    const resp = await supabase.auth.getUser();
-    const supaUser = resp?.data?.user ?? null;
-    const error = resp?.error ?? null;
+    const viewer = await getOptionalViewer();
+    const summary = await reactionService.getPostReactionsSummary(
+      id,
+      viewer?.id ?? null
+    );
 
-    let viewer: any = null;
-    if (!error && supaUser) viewer = await authService.getCurrentUserFromSupabaseUser(supaUser);
-
-    const summary = await reactionService.getPostReactionsSummary(id, viewer?.id ?? null);
     return NextResponse.json(summary);
-  } catch (err: any) {
+  } catch (err) {
     console.error("GET /api/posts/[id]/reactions error:", err);
-    if (err instanceof NotFoundError) return NextResponse.json({ error: err.message }, { status: 404 });
-    if (err instanceof AppError) return NextResponse.json({ error: err.message }, { status: err.statusCode });
+
+    if (err instanceof NotFoundError) {
+      return NextResponse.json({ error: err.message }, { status: 404 });
+    }
+
+    if (err instanceof AppError) {
+      return NextResponse.json({ error: err.message }, { status: err.statusCode });
+    }
+
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
 
 export async function POST(
   request: Request,
-  context: { params?: any }
+  context: RouteContext
 ) {
   try {
-    const params = await context?.params;
-    let id = params?.id;
+    const id = await resolveId(request, context, "posts");
+
     if (!id) {
-      try {
-        const url = new URL(request.url);
-        const segs = url.pathname.split("/").filter(Boolean);
-        const postsIndex = segs.findIndex((s) => s === "posts");
-        if (postsIndex >= 0 && segs.length > postsIndex + 1) id = segs[postsIndex + 1];
-      } catch (e) { }
+      return NextResponse.json({ error: "Missing id" }, { status: 400 });
     }
-    if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
 
-    const supabase = await createClient();
-    const resp = await supabase.auth.getUser();
-    const supaUser = resp?.data?.user ?? null;
-    const error = resp?.error ?? null;
-    if (error || !supaUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const current = await getRequiredViewer();
 
-    const current = await authService.getCurrentUserFromSupabaseUser(supaUser);
-    if (!current) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+    if (!current) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     const body = await request.json();
     const parsed = reactionSchema.parse(body);
 
-    const res = await reactionService.reactToPost(current.id, id, parsed.type as any);
+    const res = await reactionService.reactToPost(current.id, id, parsed.type);
+
     return NextResponse.json(res);
-  } catch (err: any) {
+  } catch (err) {
     console.error("POST /api/posts/[id]/reactions error:", err);
-    if (err instanceof NotFoundError) return NextResponse.json({ error: err.message }, { status: 404 });
-    if (err instanceof AppError) return NextResponse.json({ error: err.message }, { status: err.statusCode });
+
+    if (err instanceof ZodError) {
+      return NextResponse.json(
+        { error: "Invalid input", details: err.issues },
+        { status: 400 }
+      );
+    }
+
+    if (err instanceof NotFoundError) {
+      return NextResponse.json({ error: err.message }, { status: 404 });
+    }
+
+    if (err instanceof AppError) {
+      return NextResponse.json({ error: err.message }, { status: err.statusCode });
+    }
+
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
 
 export async function DELETE(
-  _request: Request,
-  context: { params?: any }
+  request: Request,
+  context: RouteContext
 ) {
   try {
-    const params = await context?.params;
-    let id = params?.id;
+    const id = await resolveId(request, context, "posts");
+
     if (!id) {
-      try {
-        const url = new URL(_request.url);
-        const segs = url.pathname.split("/").filter(Boolean);
-        const postsIndex = segs.findIndex((s) => s === "posts");
-        if (postsIndex >= 0 && segs.length > postsIndex + 1) id = segs[postsIndex + 1];
-      } catch (e) { }
+      return NextResponse.json({ error: "Missing id" }, { status: 400 });
     }
-    if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
 
-    const supabase = await createClient();
-    const resp = await supabase.auth.getUser();
-    const supaUser = resp?.data?.user ?? null;
-    const error = resp?.error ?? null;
-    if (error || !supaUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const current = await getRequiredViewer();
 
-    const current = await authService.getCurrentUserFromSupabaseUser(supaUser);
-    if (!current) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+    if (!current) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     const deleted = await reactionService.removeReactionFromPost(current.id, id);
+
     return NextResponse.json(deleted);
-  } catch (err: any) {
+  } catch (err) {
     console.error("DELETE /api/posts/[id]/reactions error:", err);
-    if (err instanceof NotFoundError) return NextResponse.json({ error: err.message }, { status: 404 });
-    if (err instanceof AppError) return NextResponse.json({ error: err.message }, { status: err.statusCode });
+
+    if (err instanceof NotFoundError) {
+      return NextResponse.json({ error: err.message }, { status: 404 });
+    }
+
+    if (err instanceof AppError) {
+      return NextResponse.json({ error: err.message }, { status: err.statusCode });
+    }
+
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
