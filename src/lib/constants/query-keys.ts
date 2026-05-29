@@ -15,4 +15,6 @@ export const QUERY_KEYS = {
   messages: (convId: string) => ["messages", convId] as const,
   notifications: ["notifications"] as const,
   membership: (userId: string) => ["membership", userId] as const,
+  adminUsers: (params: unknown) => ["admin", "users", params] as const,
+  adminUser: (id: string) => ["admin", "users", id] as const,
 } as const;

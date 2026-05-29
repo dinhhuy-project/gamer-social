@@ -116,3 +116,41 @@ export type PostShareDTO = {
   note: string | null;
   sharedAt: string;
 };
+
+export type UserRole = "user" | "member" | "admin";
+
+export type AdminUserListItem = {
+  id: string;
+  username: string;
+  displayName: string;
+  email: string;
+  avatarUrl: string | null;
+  role: UserRole;
+  isActive: boolean;
+  emailVerified: boolean;
+  postsCount: number;
+  createdAt: string;
+  lastSeenAt: string | null;
+};
+
+export type AdminUserDetail = AdminUserListItem & {
+  coverUrl: string | null;
+  bio: string | null;
+  followersCount: number;
+  followingCount: number;
+  marketplaceListingsCount: number;
+};
+
+export type AdminUsersPagination = {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+};
+
+export type AdminUsersResponse = {
+  users: AdminUserListItem[];
+  pagination: AdminUsersPagination;
+};

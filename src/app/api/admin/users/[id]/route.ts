@@ -1,59 +1,92 @@
-import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
-import { updateProfileSchema } from "@/lib/validations/user.schema";
-import { authService } from "@/lib/services/index";
-import { userService } from "@/lib/services/user.service";
-import { AppError } from "@/lib/services/shared/app-error";
-import { ZodError } from "zod";
+import { z } from "zod";
 
-export async function PUT(
-  request: Request,
-  { params }: { params: { id: string } }
+import { adminService } from "@/lib/services/admin.service";
+import { authService } from "@/lib/services/index";
+import { AppError } from "@/lib/services/shared/app-error";
+import { createClient } from "@/lib/supabase/server";
+
+const updateUserSchema = z
+  .object({
+    role: z.enum(["user", "member"]).optional(),
+    is_active: z.boolean().optional(),
+  })
+  .refine((value) => value.role !== undefined || value.is_active !== undefined, {
+    message: "No supported fields provided",
+  });
+
+async function requireAdminActor() {
+  const supabase = await createClient();
+  const resp = await supabase.auth.getUser();
+  const supaUser = resp?.data?.user ?? null;
+
+  if (resp?.error || !supaUser) {
+    return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+  }
+
+  const actor = await authService.getCurrentUserFromSupabaseUser(supaUser);
+  if (!actor) {
+    return { error: NextResponse.json({ error: "Profile not found" }, { status: 404 }) };
+  }
+
+  await authService.requireUserHasRole(actor.id, ["admin"]);
+
+  return { actor };
+}
+
+export async function GET(
+  _request: Request,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createClient();
-    const resp = await supabase.auth.getUser();
+    const auth = await requireAdminActor();
+    if ("error" in auth) return auth.error;
 
-    const supaUser = resp?.data?.user ?? null;
-    const error = resp?.error ?? null;
-    if (error || !supaUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { id } = await context.params;
+    const user = await adminService.getUserDetail(id);
 
-    const actor = await authService.getCurrentUserFromSupabaseUser(supaUser);
-    if (!actor) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+    return NextResponse.json(user);
+  } catch (err: unknown) {
+    console.error("GET /api/admin/users/[id] error:", err);
+    if (err instanceof AppError) {
+      return NextResponse.json({ error: err.message }, { status: err.statusCode });
+    }
 
-    const body = await request.json();
-    const input = updateProfileSchema.parse(body);
-
-    const updated = await userService.updateProfile(actor.id, params.id, input);
-    return NextResponse.json(updated);
-  } catch (err: any) {
-    console.error("PUT /api/admin/users/[id] error:", err);
-    if (err instanceof ZodError) return NextResponse.json({ error: "Invalid input", details: err.issues }, { status: 400 });
-    if (err instanceof AppError) return NextResponse.json({ error: err.message }, { status: err.statusCode });
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
 
-export async function DELETE(
-  _request: Request,
-  { params }: { params: { id: string } }
+export async function PATCH(
+  request: Request,
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createClient();
-    const resp = await supabase.auth.getUser();
+    const auth = await requireAdminActor();
+    if ("error" in auth) return auth.error;
 
-    const supaUser = resp?.data?.user ?? null;
-    const error = resp?.error ?? null;
-    if (error || !supaUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { id } = await context.params;
+    const input = updateUserSchema.parse(await request.json());
 
-    const actor = await authService.getCurrentUserFromSupabaseUser(supaUser);
-    if (!actor) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+    if (typeof input.is_active === "boolean") {
+      await adminService.updateUserStatus(auth.actor.id, id, input.is_active);
+    }
 
-    const deleted = await userService.deleteAccount(actor.id, params.id);
-    return NextResponse.json(deleted);
-  } catch (err: any) {
-    console.error("DELETE /api/admin/users/[id] error:", err);
-    if (err instanceof AppError) return NextResponse.json({ error: err.message }, { status: err.statusCode });
+    if (input.role) {
+      await adminService.updateUserRole(id, input.role);
+    }
+
+    const user = await adminService.getUserDetail(id);
+    return NextResponse.json(user);
+  } catch (err: unknown) {
+    console.error("PATCH /api/admin/users/[id] error:", err);
+    if (err instanceof z.ZodError) {
+      return NextResponse.json({ error: "Invalid input", details: err.issues }, { status: 400 });
+    }
+
+    if (err instanceof AppError) {
+      return NextResponse.json({ error: err.message }, { status: err.statusCode });
+    }
+
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

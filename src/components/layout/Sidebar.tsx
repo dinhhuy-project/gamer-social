@@ -12,6 +12,7 @@ import {
   IconShoppingCart,
   IconBrandMessenger,
   IconDeviceNintendo,
+  IconShieldLock,
 } from "@tabler/icons-react";
 
 import {
@@ -22,6 +23,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { useCurrentUser } from "@/hooks/auth/useCurrentUser";
 
 const data = {
   navMain: [
@@ -52,6 +54,17 @@ export function AppSidebar(
   props: React.ComponentProps<typeof Sidebar>
 ) {
   const pathname = usePathname();
+  const { data: currentUser } = useCurrentUser();
+  const navItems = currentUser?.role === "admin"
+    ? [
+        {
+          title: "Admin",
+          url: "/admin/users",
+          icon: IconShieldLock,
+        },
+        ...data.navMain,
+      ]
+    : data.navMain;
 
   return (
     <Sidebar
@@ -134,9 +147,9 @@ export function AppSidebar(
 
       <SidebarContent className="px-3 py-4">
         <SidebarMenu className="space-y-2">
-          {data.navMain.map((item) => {
+          {navItems.map((item) => {
             const isActive =
-              pathname === item.url;
+              pathname === item.url || pathname.startsWith(`${item.url}/`);
 
             return (
               <SidebarMenuItem
