@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeftIcon, ChevronRightIcon, UsersIcon } from "lucide-react";
+import Link from "next/link";
+import { ChevronLeftIcon, ChevronRightIcon, HomeIcon, UsersIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { UserDetailModal } from "@/components/admin/users/UserDetailModal";
@@ -103,8 +104,16 @@ export default function AdminUsersPage() {
             <p className="mt-2 max-w-2xl text-sm text-zinc-400">{ADMIN_USERS_TEXT.pageDescription}</p>
           </div>
 
-          <div className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-300">
-            {pagination?.total ?? 0} {ADMIN_USERS_TEXT.usersCountSuffix}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button asChild variant="outline" className="border-cyan-400/20 bg-black/30 text-cyan-100 hover:bg-cyan-400/10">
+              <Link href="/feed">
+                <HomeIcon />
+                {ADMIN_USERS_TEXT.backToHomePage}
+              </Link>
+            </Button>
+            <div className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-300">
+              {pagination?.total ?? 0} {ADMIN_USERS_TEXT.usersCountSuffix}
+            </div>
           </div>
         </header>
 

@@ -1,6 +1,7 @@
 export const ADMIN_USERS_TEXT = {
   pageTitle: "User Management",
   pageDescription: "Manage gamer accounts, membership roles, access status, and activity signals.",
+  backToHomePage: "Back to HomePage",
   searchPlaceholder: "Search username, display name, or email",
   role: "Role",
   status: "Status",
