@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
-import { authService } from "@/lib/services/index";
+import { authService } from "@/lib/services/auth.service";
 import { conversationService } from "@/lib/services/conversation.service";
 import { AppError, NotFoundError } from "@/lib/services/shared/app-error";
 
@@ -27,10 +27,10 @@ export async function GET(
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const conversation = await conversationService.getConversation(current.id, conversationId);
-    return NextResponse.json(conversation);
+    const isParticipant = await conversationService.checkParticipant(current.id, conversationId);
+    return NextResponse.json({ isParticipant });
   } catch (err: any) {
-    console.error("GET /api/conversations/[id] error:", err);
+    console.error("GET /api/conversations/[id]/participant error:", err);
     if (err instanceof NotFoundError) {
       return NextResponse.json({ error: err.message }, { status: 404 });
     }

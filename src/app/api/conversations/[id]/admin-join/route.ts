@@ -1,10 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
-import { authService } from "@/lib/services/index";
+import { authService } from "@/lib/services/auth.service";
 import { conversationService } from "@/lib/services/conversation.service";
-import { AppError, NotFoundError } from "@/lib/services/shared/app-error";
+import { AppError, NotFoundError, ForbiddenError } from "@/lib/services/shared/app-error";
 
-export async function GET(
+export async function POST(
   request: Request,
   { params }: { params: { id: string } }
 ) {
@@ -27,12 +27,15 @@ export async function GET(
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
-    const conversation = await conversationService.getConversation(current.id, conversationId);
+    const conversation = await conversationService.adminJoinTrade(current.id, conversationId);
     return NextResponse.json(conversation);
   } catch (err: any) {
-    console.error("GET /api/conversations/[id] error:", err);
+    console.error("POST /api/conversations/[id]/admin-join error:", err);
     if (err instanceof NotFoundError) {
       return NextResponse.json({ error: err.message }, { status: 404 });
+    }
+    if (err instanceof ForbiddenError) {
+      return NextResponse.json({ error: err.message }, { status: 403 });
     }
     if (err instanceof AppError) {
       return NextResponse.json({ error: err.message }, { status: err.statusCode });
