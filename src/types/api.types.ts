@@ -154,3 +154,48 @@ export type AdminUsersResponse = {
   users: AdminUserListItem[];
   pagination: AdminUsersPagination;
 };
+
+export type PostType = "regular" | "marketplace";
+export type PostStatus = "active" | "hidden" | "deleted";
+export type ListingStatus = "pending_review" | "approved" | "rejected" | "sold";
+
+export type AdminPostAuthor = {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  role: UserRole;
+};
+
+export type AdminPostListItem = {
+  id: string;
+  author: AdminPostAuthor;
+  contentPreview: string | null;
+  mediaCount: number;
+  mediaUrls: string[];
+  tags: string[];
+  postType: PostType;
+  status: PostStatus;
+  listingStatus: ListingStatus | null;
+  gameName: string | null;
+  listingPrice: number | null;
+  createdAt: string;
+  reactionsCount: number;
+  commentsCount: number;
+};
+
+export type AdminPostDetail = AdminPostListItem & {
+  content: string | null;
+  viewCount: number;
+  listingReviewedBy: string | null;
+  listingReviewedAt: string | null;
+  rejectReason: string | null;
+  reactionsSummary: Record<string, number>;
+};
+
+export type AdminPostsPagination = AdminUsersPagination;
+
+export type AdminPostsResponse = {
+  posts: AdminPostListItem[];
+  pagination: AdminPostsPagination;
+};

@@ -111,6 +111,12 @@ export default function AdminUsersPage() {
                 {ADMIN_USERS_TEXT.backToHomePage}
               </Link>
             </Button>
+            <Button asChild variant="outline">
+              <Link href="/admin/posts">{ADMIN_USERS_TEXT.postManagement}</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href="/admin/listings">{ADMIN_USERS_TEXT.marketplaceReview}</Link>
+            </Button>
             <div className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-zinc-300">
               {pagination?.total ?? 0} {ADMIN_USERS_TEXT.usersCountSuffix}
             </div>

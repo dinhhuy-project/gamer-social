@@ -33,6 +33,8 @@ export const ADMIN_USERS_TEXT = {
   usersCountSuffix: "users",
   statusUpdated: "Account status updated",
   roleUpdated: "Role updated",
+  postManagement: "Post Management",
+  marketplaceReview: "Marketplace Review",
   confirmDeactivateTitle: "Deactivate account",
   confirmDeactivateDescription: "This user will no longer be able to access active account features.",
   cancel: "Cancel",

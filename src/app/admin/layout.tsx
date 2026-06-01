@@ -3,6 +3,10 @@ import type { ReactNode } from "react";
 
 import { authService } from "@/lib/services/index";
 import { createClient } from "@/lib/supabase/server";
+import { SidebarProvider } from "@/components/ui/sidebar";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { AdminSidebar } from "@/components/layout/AdminSidebar";
+import { SiteHeader } from "@/components/layout/Topbar";
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const supabase = await createClient();
@@ -20,5 +24,15 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     redirect("/feed");
   }
 
-  return <div className="min-h-screen bg-zinc-950 text-zinc-100">{children}</div>;
+  return (
+    <SidebarProvider>
+      <TooltipProvider>
+        <AdminSidebar />
+        <main className="flex-1">
+          <SiteHeader />
+          {children}
+        </main>
+      </TooltipProvider>
+    </SidebarProvider>
+  );
 }

@@ -12,6 +12,7 @@ import {
   IconShoppingCart,
   IconBrandMessenger,
   IconDeviceNintendo,
+  IconFileText,
   IconShieldLock,
 } from "@tabler/icons-react";
 
@@ -59,7 +60,7 @@ export function AppSidebar(
     ? [
         {
           title: "Admin",
-          url: "/admin/users",
+          url: "/admin",
           icon: IconShieldLock,
         },
         ...data.navMain,
