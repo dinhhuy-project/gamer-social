@@ -1,0 +1,135 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { useSavedFeed } from "@/hooks/posts/useSavedFeed";
+import CreatePostModal from "@/components/post/CreatePostModal";
+import { PostCard } from "@/components/post/PostCard";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationPrevious,
+  PaginationNext,
+  PaginationEllipsis,
+} from "@/components/ui/pagination";
+
+export default function SavedPage() {
+  const [page, setPage] = useState(1);
+  const savedPostsQuery = useSavedFeed(page, 10);
+  const posts = savedPostsQuery.data?.data ?? [];
+
+  const totalPages = savedPostsQuery.data?.totalPages ?? 1;
+
+  const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
+
+  const visiblePosts = posts.filter((p) => !removedIds.has(p.id));
+
+  const pageItems = useMemo(() => {
+    const tp = totalPages;
+    const current = page;
+    if (tp <= 7) return Array.from({ length: tp }).map((_, i) => i + 1 as number);
+
+    const items: Array<number | "ellipsis"> = [];
+    items.push(1);
+    const left = Math.max(2, current - 1);
+    const right = Math.min(tp - 1, current + 1);
+    if (left > 2) items.push("ellipsis");
+    for (let i = left; i <= right; i++) items.push(i);
+    if (right < tp - 1) items.push("ellipsis");
+    items.push(tp);
+    return items;
+  }, [totalPages, page]);
+
+  function handleDeleted(id: string) {
+    setRemovedIds((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+  }
+
+
+
+  return (
+    <div className="max-w-3xl mx-auto py-6 px-4 space-y-4">
+      <CreatePostModal availableTags={[]} onCreated={() => setPage(1)} />
+
+      <div className="space-y-4">
+        {savedPostsQuery.isLoading && (
+          <div className="space-y-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="p-4 border rounded-md">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-10 w-10 rounded-full" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                </div>
+                <div className="mt-4 space-y-2">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-5/6" />
+                </div>
+                <Skeleton className="h-48 w-full mt-3 rounded-md" />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {savedPostsQuery.isError && (
+          <div className="p-6 text-center text-sm text-red-400">Có lỗi: {savedPostsQuery.error?.message}</div>
+        )}
+
+        {!savedPostsQuery.isLoading && visiblePosts.length === 0 && (
+          <div className="p-6 text-center text-sm text-[#8b8fa8]">Chưa có bài viết nào. Hãy là người chia sẻ đầu tiên!</div>
+        )}
+
+        {visiblePosts.map((p) => (
+          <PostCard
+            key={p.post.id}
+            post={p.post as any}
+            hasReacted={false}
+            isSaved={false}
+            onDeleted={handleDeleted}
+          />
+        ))}
+
+        {totalPages > 1 && (
+          <Pagination className="mt-4">
+            <PaginationPrevious
+              onClick={() => {
+                if (page > 1) setPage((s) => s - 1);
+              }}
+              text="Trước"
+            />
+
+            <PaginationContent>
+              {pageItems.map((it, idx) =>
+                it === "ellipsis" ? (
+                  <PaginationItem key={`e-${idx}`}>
+                    <PaginationEllipsis />
+                  </PaginationItem>
+                ) : (
+                  <PaginationItem key={it}>
+                    <PaginationLink isActive={it === page} onClick={() => setPage(it)}>
+                      {it}
+                    </PaginationLink>
+                  </PaginationItem>
+                )
+              )}
+            </PaginationContent>
+
+            <PaginationNext
+              onClick={() => {
+                if (page < totalPages) setPage((s) => s + 1);
+              }}
+              text="Sau"
+            />
+          </Pagination>
+        )}
+      </div>
+    </div>
+  );
+}

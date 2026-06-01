@@ -358,17 +358,22 @@ export async function listPosts(
   viewerId: string | null | undefined,
   page = 1,
   perPage = 20,
-  marketplace = false
+  marketplace = false,
+  userId?: string | null
 ) {
   const take = Math.max(1, Math.min(100, perPage));
   const skip = Math.max(0, (page - 1) * take);
 
   const where: any = { status: "active" };
 
+  if (userId) {
+    where.user_id = userId;
+  }
+
   if (marketplace) {
     where.post_type = "marketplace";
     where.listing_status = "approved";
-  } else {
+  } else if (!userId) {
     // feed: include regular posts and approved marketplace listings
     where.OR = [
       { post_type: "regular" },

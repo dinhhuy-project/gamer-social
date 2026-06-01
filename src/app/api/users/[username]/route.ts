@@ -6,10 +6,14 @@ import { AppError, NotFoundError } from "@/lib/services/shared/app-error";
 
 export async function GET(
   _request: Request,
-  { params }: { params: { username: string } }
+  { params }: { params: Promise<{ username: string }> }
 ) {
   try {
-    const username = params.username;
+    const { username } = await params;
+
+    if (!username || typeof username !== "string" || !username.trim()) {
+      return NextResponse.json({ error: "Username is required" }, { status: 400 });
+    }
 
     // require authentication for searching users by username
     const supabase = await createClient();

@@ -1,6 +1,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { AppError } from "./shared/app-error";
 import { assertAuth, assertExists, assertRole } from "./shared/assert";
 import type { PublicUser, CurrentUser, PaginatedResponse } from "@/types/api.types";
 
@@ -18,6 +19,7 @@ export type UserProfileDTO = PublicUser & {
   followersCount: number;
   followingCount: number;
   postsCount: number;
+  sharedPostsCount: number;
 };
 
 function toPublicUser(u: any): PublicUser {
@@ -54,24 +56,31 @@ export async function getPublicProfileByUsernameOrDisplayName(
   identifier: string,
   viewerId?: string | null
 ) {
+  if (!identifier || typeof identifier !== "string" || !identifier.trim()) {
+    throw new AppError("User identifier is required", 400, "INVALID_INPUT");
+  }
+
+  const normalizedIdentifier = identifier.trim();
+
   // ưu tiên tìm theo username (unique), fallback sang display_name
-  let user = await prisma.users.findUnique({ where: { username: identifier } });
+  let user = await prisma.users.findUnique({ where: { username: normalizedIdentifier } });
   if (!user) {
-    user = await prisma.users.findFirst({ where: { display_name: identifier } });
+    user = await prisma.users.findFirst({ where: { display_name: normalizedIdentifier } });
   }
 
   const userExists = assertExists(user, "User not found");
 
-  const [followersCount, followingCount, postsCount, isFollowingCount] = await prisma.$transaction(
+  const [followersCount, followingCount, postsCount, sharedPostsCount, isFollowingCount] = await prisma.$transaction(
     async (tx) => {
       const followersCount = await tx.follows.count({ where: { following_id: userExists.id } });
       const followingCount = await tx.follows.count({ where: { follower_id: userExists.id } });
-      const postsCount = await tx.posts.count({ where: { user_id: userExists.id, status: "active" } });
+      const postsCount = await tx.posts.count({ where: { user_id: userExists.id } });
+      const sharedPostsCount = await tx.post_shares.count({ where: { user_id: userExists.id } });
       const isFollowingCount = viewerId
         ? await tx.follows.count({ where: { follower_id: viewerId, following_id: userExists.id } })
         : 0;
 
-      return [followersCount, followingCount, postsCount, isFollowingCount] as const;
+      return [followersCount, followingCount, postsCount, sharedPostsCount, isFollowingCount] as const;
     }
   );
 
@@ -85,6 +94,7 @@ export async function getPublicProfileByUsernameOrDisplayName(
     followersCount,
     followingCount,
     postsCount,
+    sharedPostsCount,
   } as UserProfileDTO;
 }
 

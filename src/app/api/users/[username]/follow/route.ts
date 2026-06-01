@@ -10,7 +10,15 @@ export async function GET(
   { params }: { params: { username: string } }
 ) {
   try {
-    const username = params.username;
+    let username = params?.username;
+    if (!username) {
+      const url = new URL(_request.url);
+      const segs = url.pathname.split("/").filter(Boolean);
+      const usersIndex = segs.findIndex((s) => s === "users");
+      if (usersIndex >= 0 && segs.length > usersIndex + 1) {
+        username = segs[usersIndex + 1];
+      }
+    }
     if (!username) return NextResponse.json({ error: "Missing username" }, { status: 400 });
 
     // optional auth to compute `isFollowing` for the viewer
@@ -39,7 +47,15 @@ export async function POST(
   { params }: { params: { username: string } }
 ) {
   try {
-    const username = params.username;
+    let username = params?.username;
+    if (!username) {
+      const url = new URL(_request.url);
+      const segs = url.pathname.split("/").filter(Boolean);
+      const usersIndex = segs.findIndex((s) => s === "users");
+      if (usersIndex >= 0 && segs.length > usersIndex + 1) {
+        username = segs[usersIndex + 1];
+      }
+    }
     if (!username) return NextResponse.json({ error: "Missing username" }, { status: 400 });
 
     const supabase = await createClient();
@@ -69,7 +85,15 @@ export async function DELETE(
   { params }: { params: { username: string } }
 ) {
   try {
-    const username = params.username;
+    let username = params?.username;
+    if (!username) {
+      const url = new URL(_request.url);
+      const segs = url.pathname.split("/").filter(Boolean);
+      const usersIndex = segs.findIndex((s) => s === "users");
+      if (usersIndex >= 0 && segs.length > usersIndex + 1) {
+        username = segs[usersIndex + 1];
+      }
+    }
     if (!username) return NextResponse.json({ error: "Missing username" }, { status: 400 });
 
     const supabase = await createClient();

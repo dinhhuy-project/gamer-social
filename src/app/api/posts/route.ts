@@ -11,6 +11,7 @@ export async function GET(request: Request) {
     const page = Math.max(1, parseInt(url.searchParams.get("page") ?? "1", 10) || 1);
     const perPage = Math.max(1, parseInt(url.searchParams.get("perPage") ?? "20", 10) || 20);
     const marketplace = url.searchParams.get("marketplace") === "true";
+    const userId = url.searchParams.get("userId") || undefined;
 
     // optional auth
     const supabase = await createClient();
@@ -20,7 +21,7 @@ export async function GET(request: Request) {
     let viewer: any = null;
     if (!error && supaUser) viewer = await authService.getCurrentUserFromSupabaseUser(supaUser);
 
-    const list = await postService.listPosts(viewer?.id ?? null, page, perPage, marketplace);
+    const list = await postService.listPosts(viewer?.id ?? null, page, perPage, marketplace, userId);
     return NextResponse.json(list);
   } catch (err: any) {
     console.error("GET /api/posts error:", err);

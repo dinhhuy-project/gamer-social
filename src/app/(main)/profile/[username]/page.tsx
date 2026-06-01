@@ -1,8 +1,18 @@
+"use client";
+
+import { use } from "react";
 import Image from "next/image";
-import React from "react";
+import Link from "next/link";
+
+import { PostCard } from "@/components/post/PostCard";
+import FollowButton from "@/components/profile/FollowButton";
+import { useCurrentUser } from "@/hooks/auth/useCurrentUser";
+import { usePosts } from "@/hooks/posts/usePosts";
+import { useUser } from "@/hooks/users/useUser";
+import { ROUTES } from "@/lib/constants/routes";
 
 type Props = {
-  params: { username: string };
+  params: Promise<{ username: string }>;
 };
 
 const Stat = ({ label, value }: { label: string; value: string | number }) => {
@@ -14,159 +24,147 @@ const Stat = ({ label, value }: { label: string; value: string | number }) => {
   );
 };
 
-const PostCard = ({ post }: { post: any }) => {
-  return (
-    <article className="bg-card border border-border rounded-lg p-4">
-      <div className="flex items-start gap-4">
-        <Image src={post.avatar} alt="avatar" width={44} height={44} className="rounded-full" />
-        <div className="flex-1">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="font-semibold">{post.author}</div>
-              <div className="text-xs text-muted-foreground">{post.time} • {post.context}</div>
-            </div>
-            <div className="text-muted-foreground">•••</div>
-          </div>
+export default function ProfilePage({ params }: Props) {
+  const { username } = use(params);
+  const currentUserQuery = useCurrentUser();
+  const profileQuery = useUser(username);
+  const profile = profileQuery.data;
+  const isOwner = Boolean(currentUserQuery.data && profile && currentUserQuery.data.id === profile.id);
 
-          <p className="mt-3 text-sm text-muted-foreground">{post.text}</p>
+  const postsQuery = usePosts(1, 10, false, profile?.id, Boolean(profile?.id));
+  const posts = postsQuery.data?.data ?? [];
 
-          {post.image && (
-            <div className="mt-3 rounded overflow-hidden">
-              <Image src={post.image} alt="post" width={900} height={400} className="w-full h-auto rounded-md" />
-            </div>
-          )}
+  const displayName = profile?.displayName ?? username;
+  const avatar = profile?.avatarUrl ?? "/images/fiery_magma_dragon.png";
+  const cover = profile?.coverUrl ?? avatar;
+  const bio = profile?.bio ?? "Chưa có bio.";
 
-          <div className="mt-3 flex items-center gap-4 text-sm text-muted-foreground">
-            <div>👍 {post.likes.toLocaleString()}</div>
-            <div>💬 {post.comments}</div>
-            <div>Share</div>
-          </div>
+  if (profileQuery.isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-64 animate-pulse rounded-lg bg-card border border-border" />
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="h-24 animate-pulse rounded-lg bg-card border border-border" />
+          ))}
         </div>
       </div>
-    </article>
-  );
-};
+    );
+  }
 
-export default function ProfilePage({ params }: Props) {
-  const username = params?.username ?? "CyberPhantom_99";
-
-  const user = {
-    displayName: username,
-    bio:
-      "Competitive FPS enthusiast and aspiring strategy analyst. Currently grinding rank in 'Ether Wars'. Founder of the @NeonVanguard community. Always looking for a solid duo.",
-    hoursPlayed: 2482,
-    accountLevel: 142,
-    trophies: 315,
-    globalRank: "#1,104",
-    avatar: "/images/fiery_magma_dragon.png",
-    cover: "/images/fiery_magma_dragon.png",
-  };
-
-  const posts = [
-    {
-      id: "1",
-      author: user.displayName,
-      avatar: user.avatar,
-      time: "2 hours ago",
-      context: "in Ether Wars",
-      text: "Just hit Platinum in the new season! The mid-lane meta is wild right now. Who else is climbing the ladder tonight? 🔥",
-      image: "/images/fiery_magma_dragon.png",
-      likes: 1200,
-      comments: 48,
-    },
-  ];
+  if (profileQuery.isError) {
+    return (
+      <div className="rounded-lg border border-red-500/40 bg-card p-6 text-sm text-red-300">
+        {profileQuery.error.message}
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <div className="lg:col-span-2 space-y-6">
-        <div className="relative rounded-lg overflow-hidden bg-card border border-border">
+        <div className="relative overflow-hidden rounded-lg border border-border bg-card">
           <div
             className="h-44 bg-cover bg-center"
-            style={{ backgroundImage: `url(${user.cover})` }}
+            style={{ backgroundImage: `url(${cover})` }}
           />
 
-          <div className="p-6 -mt-16">
-            <div className="flex items-start gap-6">
-              <div className="-mt-6">
+          <div className="p-10">
+            <div className="flex flex-col gap-6 md:flex-row md:items-start">
+              <div className="-mt-6 shrink-0">
                 <div className="rounded-full p-1 bg-gradient-to-tr from-amber-400 via-pink-500 to-cyan-400">
-                  <Image src={user.avatar} alt={user.displayName} width={112} height={112} className="rounded-full border-4 border-card" />
+                  <Image src={avatar} alt={displayName} width={112} height={112} className="rounded-full border-4 border-card" />
                 </div>
               </div>
 
               <div className="flex-1">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div>
-                    <h2 className="text-2xl font-semibold text-card-foreground">{user.displayName}</h2>
-                    <p className="text-sm text-muted-foreground mt-1 max-w-xl">{user.bio}</p>
+                    <h2 className="text-2xl font-semibold text-card-foreground">{displayName}</h2>
+                    <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{bio}</p>
                   </div>
 
-                  <div className="flex gap-2">
-                    <button className="px-4 py-2 rounded bg-amber-500 text-black font-semibold">Follow</button>
-                    <button className="px-4 py-2 rounded border border-border text-sm">Message</button>
-                  </div>
+                  {isOwner ? (
+                    <Link
+                      href={ROUTES.settings}
+                      className="inline-flex items-center justify-center rounded bg-amber-500 px-4 py-2 text-sm font-semibold text-black"
+                    >
+                      Chỉnh sửa hồ sơ
+                    </Link>
+                  ) : (
+                    <div className="flex flex-wrap gap-3">
+                      <FollowButton username={username} />
+                      <Link
+                        href={ROUTES.messages}
+                        className="inline-flex items-center justify-center rounded border border-border bg-card px-4 py-2 text-sm font-semibold text-card-foreground transition hover:border-amber-400/60 hover:text-amber-300"
+                      >
+                        Message
+                      </Link>
+                    </div>
+                  )}
                 </div>
 
-                <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <Stat label="Hours Played" value={user.hoursPlayed} />
-                  <Stat label="Account Level" value={user.accountLevel} />
-                  <Stat label="Trophies Earned" value={user.trophies} />
-                  <Stat label="Global Rank" value={user.globalRank} />
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <Stat label="Followers" value={profile?.followersCount ?? 0} />
+                  <Stat label="Following" value={profile?.followingCount ?? 0} />
+                  <Stat label="Shared posts" value={profile?.sharedPostsCount ?? 0} />
+                  <Stat label="All posts" value={profile?.postsCount ?? 0} />
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="bg-card border border-border rounded-lg p-4">
-          <nav className="flex gap-4 border-b border-zinc-800 pb-3 mb-4">
-            <a className="text-sm font-medium border-b-2 border-amber-500 pb-2">Posts</a>
-            <a className="text-sm text-muted-foreground">Achievements</a>
-            <a className="text-sm text-muted-foreground">Collection</a>
-            <a className="text-sm text-muted-foreground">Friends</a>
-          </nav>
-
-          <div className="space-y-6">
-            {posts.map((post) => (
-              <PostCard key={post.id} post={post} />
-            ))}
+        <div className="rounded-lg border border-border bg-card p-4">
+          <div className="mb-4 border-b border-zinc-800 pb-3">
+            <h3 className="text-sm font-semibold text-card-foreground">Posts của {displayName}</h3>
           </div>
+
+          {postsQuery.isLoading ? (
+            <div className="space-y-4">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <div key={index} className="h-32 animate-pulse rounded-lg bg-zinc-900" />
+              ))}
+            </div>
+          ) : postsQuery.isError ? (
+            <div className="rounded-lg border border-red-500/40 bg-zinc-950 p-4 text-sm text-red-300">
+              {postsQuery.error.message}
+            </div>
+          ) : posts.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+              Chưa có bài post nào để hiển thị.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {posts.map((post) => (
+                <PostCard
+                  key={post.id}
+                  post={post as any}
+                  hasReacted={false}
+                  isSaved={false}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
       <aside className="space-y-6">
-        <div className="bg-card border border-border rounded-lg p-4">
-          <h3 className="text-sm font-semibold mb-3 text-card-foreground">Recently Played</h3>
-          <ul className="space-y-3 text-sm text-muted-foreground">
-            <li className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Image src={user.avatar} alt="Cyber Siege" width={48} height={48} className="rounded" />
-                <div>
-                  <div className="font-medium text-card-foreground">Cyber Siege</div>
-                  <div className="text-xs text-muted-foreground">32 hours • Level 85</div>
-                </div>
-              </div>
-              <div className="text-xs text-muted-foreground">›</div>
-            </li>
-
-            <li className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Image src={user.avatar} alt="Ether Wars" width={48} height={48} className="rounded" />
-                <div>
-                  <div className="font-medium text-card-foreground">Ether Wars</div>
-                  <div className="text-xs text-muted-foreground">1,128 hours • Diamond Rank</div>
-                </div>
-              </div>
-              <div className="text-xs text-muted-foreground">›</div>
-            </li>
-          </ul>
-        </div>
-
-        <div className="bg-card border border-border rounded-lg p-4">
-          <h3 className="text-sm font-semibold mb-3 text-card-foreground">Communities</h3>
-          <div className="flex flex-wrap gap-2">
-            <span className="px-3 py-1 rounded bg-zinc-900 text-sm">#NeonVanguard</span>
-            <span className="px-3 py-1 rounded bg-zinc-900 text-sm">#FPS_Elite</span>
-            <span className="px-3 py-1 rounded bg-zinc-900 text-sm">#Strategy_Masters</span>
+        <div className="rounded-lg border border-border bg-card p-4">
+          <h3 className="text-sm font-semibold text-card-foreground">Tóm tắt</h3>
+          <div className="mt-3 space-y-3 text-sm text-muted-foreground">
+            <div className="flex items-center justify-between">
+              <span>Username</span>
+              <span className="font-medium text-card-foreground">{profile?.username ?? username}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Email</span>
+              <span className="font-medium text-card-foreground">{currentUserQuery.data?.email ?? "—"}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Role</span>
+              <span className="font-medium text-card-foreground">{profile?.role ?? "user"}</span>
+            </div>
           </div>
         </div>
       </aside>

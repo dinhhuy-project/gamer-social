@@ -10,6 +10,7 @@ export type UserProfile = PublicUser & {
   followersCount: number;
   followingCount: number;
   postsCount: number;
+  sharedPostsCount: number;
 };
 
 async function fetchUser(username: string) {
