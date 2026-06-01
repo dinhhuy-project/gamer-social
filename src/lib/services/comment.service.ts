@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { createNotifications } from "@/lib/services";
 import { AppError } from "./shared/app-error";
 import { assertAuth, assertExists, assertRole } from "./shared/assert";
 import type { PublicUser, PaginatedResponse } from "@/types/api.types";
@@ -140,15 +141,15 @@ export async function createComment(actorId: string, postId: string, input: Crea
     // notify post owner if commenter isn't the post owner
     try {
       if (post.user_id !== actorId) {
-        await tx.notifications.create({
-          data: {
-            user_id: post.user_id,
+        await createNotifications(tx, [
+          {
+            userId: post.user_id,
             type: "post_comment",
             title: null,
             body: null,
             data: { postId, commentId: c.id },
           },
-        });
+        ], { actorId });
       }
     } catch {
       // ignore notification failures
@@ -157,15 +158,15 @@ export async function createComment(actorId: string, postId: string, input: Crea
     // notify parent comment owner (reply)
     try {
       if (parent && parent.user_id !== actorId) {
-        await tx.notifications.create({
-          data: {
-            user_id: parent.user_id,
+        await createNotifications(tx, [
+          {
+            userId: parent.user_id,
             type: "comment_reply",
             title: null,
             body: null,
             data: { postId, commentId: c.id, parentId: parent.id },
           },
-        });
+        ], { actorId });
       }
     } catch {
       // ignore
@@ -179,15 +180,15 @@ export async function createComment(actorId: string, postId: string, input: Crea
         for (const u of users) {
           if (u.id === actorId) continue;
           try {
-            await tx.notifications.create({
-              data: {
-                user_id: u.id,
+            await createNotifications(tx, [
+              {
+                userId: u.id,
                 type: parent ? "comment_reply" : "post_comment",
                 title: null,
                 body: null,
                 data: { postId, commentId: c.id },
               },
-            });
+            ], { actorId });
           } catch {
             // ignore
           }
@@ -234,7 +235,15 @@ export async function updateComment(actorId: string, commentId: string, input: U
         for (const u of users) {
           if (u.id === actorId) continue;
           try {
-            await tx.notifications.create({ data: { user_id: u.id, type: "comment_reply", title: null, body: null, data: { postId: c.post_id, commentId: c.id } } });
+            await createNotifications(tx, [
+              {
+                userId: u.id,
+                type: "comment_reply",
+                title: null,
+                body: null,
+                data: { postId: c.post_id, commentId: c.id },
+              },
+            ], { actorId });
           } catch { }
         }
       }

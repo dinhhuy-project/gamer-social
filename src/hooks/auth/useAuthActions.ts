@@ -52,7 +52,13 @@ export function useAuthActions() {
       return;
     }
 
-    router.push("/feed");
+    const profile = await fetch("/api/me", {
+      credentials: "same-origin",
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .catch(() => null);
+
+    router.push(profile?.role === "admin" ? "/admin/users" : "/feed");
     router.refresh();
   }
 

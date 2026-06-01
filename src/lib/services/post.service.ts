@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { createNotifications } from "@/lib/services";
 import { AppError, NotFoundError } from "./shared/app-error";
 import { assertAuth, assertExists, assertRole } from "./shared/assert";
 import type { PublicUser, PaginatedResponse } from "@/types/api.types";
@@ -341,15 +342,15 @@ export async function reviewListing(actorId: string, postId: string, approve: bo
 
     // create notification for post owner (best-effort inside transaction)
     try {
-      await tx.notifications.create({
-        data: {
-          user_id: p.user_id,
+      await createNotifications(tx, [
+        {
+          userId: p.user_id,
           type: approve ? "listing_approved" : "listing_rejected",
           title: null,
           body: null,
           data: approve ? undefined : { reason: rejectReason ?? null },
         },
-      });
+      ], { actorId });
     } catch {
       // ignore notification failures
     }

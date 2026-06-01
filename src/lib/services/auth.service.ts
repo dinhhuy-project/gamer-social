@@ -44,12 +44,16 @@ function sanitizeUsername(input: string) {
   );
 }
 
-async function setSupabaseUserInternalId(authId: string | undefined, internalId: string | undefined) {
+async function setSupabaseUserMetadata(
+  authId: string | undefined,
+  internalId: string | undefined,
+  role?: "user" | "member" | "admin"
+) {
   if (!authId || !internalId) return;
   try {
     // use admin API to persist a mapping so edge middleware can read it from user metadata
     await (supabaseAdmin.auth as any).admin.updateUserById(authId, {
-      user_metadata: { internal_user_id: internalId },
+      user_metadata: { internal_user_id: internalId, ...(role ? { role } : {}) },
     });
   } catch (e) {
     // ignore failures to avoid breaking auth flow
@@ -100,7 +104,7 @@ export async function getOrCreateUserBySupabaseUser(
       },
     });
     // persist mapping into Supabase user metadata for edge-safe access
-    void setSupabaseUserInternalId(supabaseUser.id, updated.id);
+    void setSupabaseUserMetadata(supabaseUser.id, updated.id, updated.role);
     return toPublicUser(updated);
   }
 
@@ -136,7 +140,7 @@ export async function getOrCreateUserBySupabaseUser(
       });
 
       // persist mapping into Supabase user metadata for edge-safe access
-      void setSupabaseUserInternalId(supabaseUser.id, updated.id);
+      void setSupabaseUserMetadata(supabaseUser.id, updated.id, updated.role);
       return toPublicUser(updated);
     }
   }
@@ -178,7 +182,7 @@ export async function getOrCreateUserBySupabaseUser(
       });
 
       // persist mapping into Supabase user metadata for edge-safe access
-      void setSupabaseUserInternalId(supabaseUser.id, created.id);
+      void setSupabaseUserMetadata(supabaseUser.id, created.id, created.role);
       return toPublicUser(created);
     } catch (err: any) {
       // Prisma unique constraint error
@@ -197,6 +201,7 @@ export async function getOrCreateUserBySupabaseUser(
               where: { id: byEmail.id },
               data: { auth_id: supabaseUser.id },
             });
+            void setSupabaseUserMetadata(supabaseUser.id, mapped.id, mapped.role);
             return toPublicUser(mapped);
           }
         }

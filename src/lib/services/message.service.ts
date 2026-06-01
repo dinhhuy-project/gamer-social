@@ -2,7 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { AppError, ForbiddenError } from "./shared/app-error";
 import { assertAuth } from "./shared/assert";
-import { ChatRealtimeService, NotificationRealtimeService } from "@/lib/services/realtime";
+import { ChatRealtimeService } from "@/lib/services/realtime";
+import { createNotifications, broadcastNotifications } from "@/lib/services";
 import type { MessageDto, SendMessageInput } from "@/types/message.types";
 
 function sanitizeContent(content?: string) {
@@ -84,29 +85,17 @@ export async function createMessage(actorId: string | null | undefined, input: S
       data: { updated_at: new Date() },
     });
 
-    const notifications = [] as Array<{ id: string; user_id: string }>;
-    for (const recipientId of recipientIds) {
-      try {
-        const notification = await tx.notifications.create({
-          data: {
-            user_id: recipientId,
-            type: "new_message",
-            title: "New message",
-            body: content ? content.slice(0, 120) : "You have received a new message.",
-            data: {
-              conversationId,
-              messageId: message.id,
-              senderId,
-            },
-          },
-        });
-        notifications.push({ id: notification.id, user_id: recipientId });
-      } catch {
-        // best-effort notification; do not fail message creation
-      }
-    }
+    const entries = recipientIds.map((recipientId) => ({
+      userId: recipientId,
+      type: "new_message" as const,
+      title: "New message",
+      body: content ? content.slice(0, 120) : "You have received a new message.",
+      data: { conversationId, messageId: message.id, senderId },
+    }));
 
-    return { message, notifications };
+    const createdNotifications = await createNotifications(tx, entries, { actorId: senderId });
+
+    return { message, notifications: createdNotifications };
   });
 
   const createdMessage = result.message;
@@ -121,17 +110,10 @@ export async function createMessage(actorId: string | null | undefined, input: S
     // ignore realtime broadcast failure; core DB work already succeeded
   }
 
-  for (const notification of createdNotifications) {
-    try {
-      await NotificationRealtimeService.send(supabaseAdmin, notification.user_id, {
-        notificationId: notification.id,
-        type: "new_message",
-        title: "New message",
-        body: content ? content.slice(0, 120) : "You have received a new message.",
-      });
-    } catch {
-      // ignore realtime notification failure
-    }
+  try {
+    await broadcastNotifications(createdNotifications);
+  } catch {
+    // ignore realtime notification failure
   }
 
   return dto;

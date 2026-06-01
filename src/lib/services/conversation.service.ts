@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { authService } from "./auth.service";
-import { broadcastNotifications, createNotifications } from "./notification.service";
+import { broadcastNotifications, createNotifications } from "@/lib/services";
 import { AppError, ForbiddenError, NotFoundError } from "./shared/app-error";
 import { assertAuth } from "./shared/assert";
 import type { ConversationDto } from "@/types/conversation.types";

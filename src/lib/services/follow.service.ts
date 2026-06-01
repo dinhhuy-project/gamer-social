@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { createNotifications } from "@/lib/services";
 import { Prisma } from "@/generated/prisma/client";
 import { AppError } from "./shared/app-error";
 import { assertAuth, assertExists } from "./shared/assert";
@@ -70,15 +71,15 @@ export async function followUser(actorId: string | null | undefined, targetId: s
 
       // create an in-app notification for the followed user (best-effort)
       try {
-        await tx.notifications.create({
-          data: {
-            user_id: targetId,
+        await createNotifications(tx, [
+          {
+            userId: targetId,
             type: "new_follower",
             title: null,
             body: null,
             data: { followerId: actorId },
           },
-        });
+        ], { actorId });
       } catch (e) {
         // ignore notification failures so follow still succeeds
       }

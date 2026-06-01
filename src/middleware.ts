@@ -98,9 +98,30 @@ export async function middleware(
     );
   }
 
+  const metadataRole: string | null = (user as any)?.user_metadata?.role ?? null;
+  let dbUserRole: string | null = null;
+
+  if (user && (pathname.startsWith("/admin") || isAuthPage)) {
+    const { data: dbUser } = await supabase
+      .from("users")
+      .select("role")
+      .eq("auth_id", user.id)
+      .maybeSingle();
+
+    dbUserRole = dbUser?.role ?? null;
+  }
+
+  if (user && pathname.startsWith("/admin")) {
+    if (dbUserRole && dbUserRole !== "admin") {
+      return NextResponse.redirect(
+        new URL("/feed", request.url)
+      );
+    }
+  }
+
   if (user && isAuthPage) {
     return NextResponse.redirect(
-      new URL("/feed", request.url)
+      new URL((dbUserRole ?? metadataRole) === "admin" ? "/admin/users" : "/feed", request.url)
     );
   }
 

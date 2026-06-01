@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { createNotifications } from "@/lib/services";
 import { AppError } from "./shared/app-error";
 import { assertAuth, assertExists } from "./shared/assert";
 import type {
@@ -411,9 +412,9 @@ export async function reactToPost(
 
     if (post.user_id !== actorId) {
       try {
-        await tx.notifications.create({
-          data: {
-            user_id: post.user_id,
+        await createNotifications(tx, [
+          {
+            userId: post.user_id,
             type: "post_reaction",
             title: null,
             body: null,
@@ -423,7 +424,7 @@ export async function reactToPost(
               type,
             },
           },
-        });
+        ], { actorId });
       } catch { }
     }
 
@@ -547,9 +548,9 @@ export async function reactToComment(
 
     if (comment.user_id !== actorId) {
       try {
-        await tx.notifications.create({
-          data: {
-            user_id: comment.user_id,
+        await createNotifications(tx, [
+          {
+            userId: comment.user_id,
             type: "post_reaction",
             title: null,
             body: null,
@@ -559,7 +560,7 @@ export async function reactToComment(
               type,
             },
           },
-        });
+        ], { actorId });
       } catch { }
     }
 

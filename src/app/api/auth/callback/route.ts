@@ -6,7 +6,7 @@ import { authService } from "@/lib/services/index";
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const redirect = searchParams.get("redirect") ?? "/feed";
+  const redirectParam = searchParams.get("redirect");
   const error = searchParams.get("error");
   const errorDesc = searchParams.get("error_description");
 
@@ -32,15 +32,20 @@ export async function GET(request: NextRequest) {
 
   // Đảm bảo profile tồn tại trong public.users
   // (Trigger handle_new_auth_user sẽ tạo tự động, nhưng upsert ở đây để chắc chắn)
+  let role: "user" | "member" | "admin" = "user";
+
   try {
     // delegate to auth service which handles mapping/creation and metadata sync
     if (data.user) {
-      await authService.getOrCreateUserBySupabaseUser(data.user);
+      const profile = await authService.getOrCreateUserBySupabaseUser(data.user);
+      role = profile.role;
     }
   } catch (err) {
     // Log lỗi nhưng không block — trigger SQL sẽ xử lý
     console.error("Upsert user profile error:", err);
   }
+
+  const redirect = redirectParam ?? (role === "admin" ? "/admin/users" : "/feed");
 
   return NextResponse.redirect(`${origin}${redirect}`);
 }
