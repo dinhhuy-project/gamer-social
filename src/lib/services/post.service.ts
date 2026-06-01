@@ -5,6 +5,7 @@ import { assertAuth, assertExists, assertRole } from "./shared/assert";
 import type { PublicUser, PaginatedResponse } from "@/types/api.types";
 import { Prisma } from "@/generated/prisma/client";
 import { tagService } from "./tag.service";
+import { commentService } from "./comment.service";
 
 export type CreatePostInput = {
   post_type: "regular" | "marketplace";
@@ -30,6 +31,7 @@ export type PostDTO = {
   mediaUrls: string[];
   status: "active" | "hidden" | "deleted";
   viewCount: number;
+  commentCount: number;
   listingPrice: number | null;
   gameName: string | null;
   listingStatus: "pending_review" | "approved" | "rejected" | "sold" | null;
@@ -62,7 +64,10 @@ async function loadTagNamesForPost(postId: string) {
 
 async function mapPostToDTO(post: any): Promise<PostDTO> {
   const authorRec = await prisma.users.findUnique({ where: { id: post.user_id } });
-  const tagNames = await loadTagNamesForPost(post.id);
+  const [tagNames, commentCount] = await Promise.all([
+    loadTagNamesForPost(post.id),
+    commentService.countRootCommentsForPost(post.id),
+  ]);
 
   return {
     id: post.id,
@@ -73,6 +78,7 @@ async function mapPostToDTO(post: any): Promise<PostDTO> {
     mediaUrls: (post.media_urls as any) ?? [],
     status: post.status,
     viewCount: post.view_count,
+    commentCount: commentCount ?? 0,
     listingPrice: post.listing_price ? Number(post.listing_price) : null,
     gameName: post.game_name ?? null,
     listingStatus: post.listing_status ?? null,
@@ -540,6 +546,28 @@ export async function enrichPostsWithShares<T extends { id: string }>(viewerId: 
   return posts.map((p) => ({ ...p, shareState: { shared: map.has(p.id), sharedAt: map.get(p.id) ?? null } }));
 }
 
+export async function incrementViewCount(postId: string) {
+  const post = await prisma.posts.update({
+    where: {
+      id: postId,
+    },
+    data: {
+      view_count: {
+        increment: 1,
+      },
+    },
+    select: {
+      id: true,
+      view_count: true,
+    },
+  });
+
+  return {
+    postId: post.id,
+    viewCount: post.view_count,
+  };
+}
+
 export const postService = {
   getPostById,
   createPost,
@@ -557,6 +585,7 @@ export const postService = {
   getShareCountsForPosts,
   listPostShares,
   enrichPostsWithShares,
+  incrementViewCount,
 };
 
 export default postService;

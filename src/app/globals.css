@@ -52,6 +52,28 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+@layer components {
+  .comment-highlight {
+    animation: commentHighlight 1.2s ease;
+    /* subtle rounded glow to match cards */
+    border-radius: 0.75rem;
+  }
+
+  @keyframes commentHighlight {
+    0% {
+      box-shadow: 0 0 0 0 rgba(244, 109, 27, 0);
+    }
+
+    20% {
+      box-shadow: 0 0 0 8px rgba(244, 109, 27, 0.08);
+    }
+
+    100% {
+      box-shadow: 0 0 0 0 rgba(244, 109, 27, 0);
+    }
+  }
+}
+
 :root {
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);

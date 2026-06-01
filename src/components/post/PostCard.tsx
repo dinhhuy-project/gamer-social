@@ -26,12 +26,14 @@ import { useAuth } from "@/providers/AuthProvider";
 import { usePostMutations } from "@/hooks/posts/usePostMutations";
 import { ROUTES } from "@/lib/constants/routes";
 import type { Post } from "@/types/post.types";
+import { AvatarFallback } from "@/components/common/UserAvatar";
 
 type PostCardProps = {
   post: Post;
   hasReacted?: boolean;
   isSaved?: boolean;
   onDeleted?: (id: string) => void;
+  onCommentClick?: () => void;
 };
 
 export function PostCard({
@@ -39,6 +41,7 @@ export function PostCard({
   hasReacted = false,
   isSaved = false,
   onDeleted,
+  onCommentClick,
 }: PostCardProps) {
   const { profile } = useAuth();
   const [shareOpen, setShareOpen] = useState(false);
@@ -256,15 +259,17 @@ export function PostCard({
           <PostActions
             postId={post.id}
             reactionCount={(post as any)._count?.reactions ?? 0}
-            commentCount={(post as any)._count?.comments ?? 0}
+            commentCount={(post as any).commentCount ?? (post as any)._count?.comments ?? 0}
             hasShared={isShared}
             shareCount={shareCount}
             hasReacted={hasReacted}
             isSaved={isSaved}
             size="compact"
-            onCommentClick={() => {
-              window.location.href = ROUTES.post(post.id) + "#comments";
-            }}
+            onCommentClick={
+              onCommentClick ?? (() => {
+                window.location.href = ROUTES.post(post.id) + "#comments";
+              })
+            }
             onShareClick={() => setShareOpen(true)}
           />
         </div>
@@ -301,21 +306,6 @@ function PostContent({ content }: { content: string }) {
         </>
       )}
     </p>
-  );
-}
-
-// ── Avatar fallback initials ─────────────────────────────────
-function AvatarFallback({ name }: { name: string }) {
-  const initials = name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
-  const hue = name.charCodeAt(0) * 7 % 360;
-
-  return (
-    <div
-      className="w-full h-full flex items-center justify-center text-white text-xs font-bold"
-      style={{ background: `hsl(${hue}, 55%, 35%)` }}
-    >
-      {initials}
-    </div>
   );
 }
 

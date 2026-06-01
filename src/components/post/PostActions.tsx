@@ -4,14 +4,13 @@
 // Action bar: Like · Comment · Share · Save
 
 import { useState, useCallback } from "react";
-import { Heart, MessageCircle, Share2, Bookmark } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { MessageCircle, Share2, Bookmark } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePostReactionMutations } from "@/hooks/posts/usePostReactionMutations";
 import { usePostBookmarkMutations } from "@/hooks/posts/usePostBookmarkMutations";
 import { usePostReactions } from "@/hooks/posts/usePostReactions";
 import { usePostBookmarkState } from "@/hooks/posts/usePostBookmark";
+import { ReactionButton, ReactionPicker } from "@/components/reaction";
 import { cn } from "@/lib/utils/cn";
 import { formatNumber } from "@/lib/utils/format";
 import { useAuth } from "@/providers/AuthProvider";
@@ -30,18 +29,7 @@ type PostActionsProps = {
   size?: "compact" | "default";
 };
 
-const REACTION_OPTIONS: Array<{
-  type: ReactionType;
-  emoji: string;
-  label: string;
-}> = [
-    { type: "like", emoji: "👍", label: "Thích" },
-    { type: "love", emoji: "❤️", label: "Yêu thích" },
-    { type: "haha", emoji: "😂", label: "Haha" },
-    { type: "wow", emoji: "😮", label: "Wow" },
-    { type: "sad", emoji: "😢", label: "Buồn" },
-    { type: "angry", emoji: "😠", label: "Phẫn nộ" },
-  ];
+
 
 export function PostActions({
   postId,
@@ -71,51 +59,11 @@ export function PostActions({
 
   const serverReaction = reactionsQuery.data?.viewerReaction ?? null;
   const currentReaction = serverReaction ?? (initialReacted ? "like" : null);
-  const REACTION_STYLE_MAP: Record<
-    ReactionType,
-    {
-      emoji: string;
-      color: string;
-      bg: string;
-    }
-  > = {
-    like: {
-      emoji: "👍",
-      color: "text-blue-500",
-      bg: "bg-blue-500/10",
-    },
-    love: {
-      emoji: "❤️",
-      color: "text-rose-500",
-      bg: "bg-rose-500/10",
-    },
-    haha: {
-      emoji: "😂",
-      color: "text-yellow-400",
-      bg: "bg-yellow-400/10",
-    },
-    wow: {
-      emoji: "😮",
-      color: "text-orange-400",
-      bg: "bg-orange-400/10",
-    },
-    sad: {
-      emoji: "😢",
-      color: "text-cyan-400",
-      bg: "bg-cyan-400/10",
-    },
-    angry: {
-      emoji: "😠",
-      color: "text-red-500",
-      bg: "bg-red-500/10",
-    },
-  };
   const serverBookmark = bookmarkQuery.data;
   const saved = serverBookmark ? Boolean(serverBookmark.saved) : initialSaved;
   const rxCount = reactionsQuery.data
     ? reactionsQuery.data.counts.total
     : reactionCount;
-  const reacted = Boolean(currentReaction);
 
   const handleReactionSelect = useCallback(
     async (type: ReactionType) => {
@@ -208,88 +156,22 @@ export function PostActions({
         </div>
       ) : (
         <div className="flex items-center gap-1">
-          <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-            <PopoverTrigger asChild>
-              <div
-                onMouseEnter={() => setPickerOpen(true)}
-                className="relative"
-              >
-                <ActionButton
-                  onClick={handleLikeClick}
-                  active={reacted}
-                  activeColor={
-                    currentReaction
-                      ? REACTION_STYLE_MAP[currentReaction].color
-                      : "text-rose-500"
-                  }
-                  label={`${formatNumber(rxCount)} lượt thích`}
-                  compact={isCompact}
-                  className={cn(
-                    likeAnim && "animate-bounce-once",
-                    currentReaction &&
-                    REACTION_STYLE_MAP[currentReaction].bg
-                  )}
-                >
-                  {currentReaction ? (
-                    <span
-                      className={cn(
-                        "transition-transform duration-200 scale-110",
-                        isCompact ? "text-base" : "text-lg"
-                      )}
-                    >
-                      {REACTION_STYLE_MAP[currentReaction].emoji}
-                    </span>
-                  ) : (
-                    <Heart
-                      className={cn(
-                        "transition-all duration-200 text-[#8b8fa8]",
-                        isCompact ? "w-4 h-4" : "w-5 h-5"
-                      )}
-                    />
-                  )}
-
-                  <span
-                    className={cn(
-                      "tabular-nums transition-colors",
-                      isCompact ? "text-xs" : "text-sm",
-                      currentReaction
-                        ? REACTION_STYLE_MAP[currentReaction].color
-                        : "text-[#8b8fa8]"
-                    )}
-                  >
-                    {formatNumber(rxCount)}
-                  </span>
-                </ActionButton>
-              </div>
-            </PopoverTrigger>
-            <PopoverContent
-              side="top"
-              align="start"
-              sideOffset={2}
-              onMouseEnter={() => setPickerOpen(true)}
-              onMouseLeave={() => setPickerOpen(false)}
-            >
-              <div className="flex items-center gap-1.5">
-                {REACTION_OPTIONS.map((reaction) => (
-                  <Button
-                    key={reaction.type}
-                    type="button"
-                    variant={currentReaction === reaction.type ? "secondary" : "ghost"}
-                    size="icon"
-                    aria-label={reaction.label}
-                    title={reaction.label}
-                    onClick={() => void handleReactionSelect(reaction.type)}
-                    className={cn(
-                      "size-10 rounded-full text-lg transition-transform hover:scale-110",
-                      currentReaction === reaction.type && "bg-accent"
-                    )}
-                  >
-                    {reaction.emoji}
-                  </Button>
-                ))}
-              </div>
-            </PopoverContent>
-          </Popover>
+          <ReactionPicker
+            currentReaction={currentReaction}
+            onSelect={handleReactionSelect}
+            open={pickerOpen}
+            onOpenChange={setPickerOpen}
+          >
+            <div onMouseEnter={() => setPickerOpen(true)} className="relative">
+              <ReactionButton
+                currentReaction={currentReaction}
+                count={rxCount}
+                isAnimating={likeAnim}
+                onClick={handleLikeClick}
+                compact={isCompact}
+              />
+            </div>
+          </ReactionPicker>
 
           <ActionButton
             onClick={onCommentClick}

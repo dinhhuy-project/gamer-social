@@ -407,6 +407,10 @@ export async function countCommentsForPost(postId: string) {
   return prisma.comments.count({ where: { post_id: postId, is_deleted: false } });
 }
 
+export async function countRootCommentsForPost(postId: string) {
+  return prisma.comments.count({ where: { post_id: postId, parent_id: null, is_deleted: false } });
+}
+
 export async function getCommentById(viewerId: string | null | undefined, commentId: string) {
   const c = assertExists(
     await prisma.comments.findUnique({ where: { id: commentId }, include: { users: true } }),
@@ -444,6 +448,7 @@ export const commentService = {
   getCommentById,
   buildCommentTree,
   countCommentsForPost,
+  countRootCommentsForPost,
 };
 
 export default commentService;

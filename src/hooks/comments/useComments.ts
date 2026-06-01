@@ -133,11 +133,12 @@ export function useCommentTree(postId: string) {
   });
 }
 
-export function useComment(commentId: string) {
+export function useComment(commentId: string, initialData?: CommentDTO) {
   return useQuery<CommentDTO, Error>({
     queryKey: ["comment", commentId],
     queryFn: () => fetchComment(commentId),
     enabled: Boolean(commentId),
+    initialData,
   });
 }
 

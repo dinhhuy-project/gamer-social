@@ -1,94 +1,96 @@
-import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+
 import { commentService } from "@/lib/services/comment.service";
-import { authService } from "@/lib/services/index";
-import { AppError, NotFoundError } from "@/lib/services/shared/app-error";
+
+import {
+  getCurrentUser,
+  getRouteParamId,
+  requireCurrentUser,
+} from "@/lib/api/route-utils";
+
+import { handleApiError } from "@/lib/api/handle-api-error";
+
 import { createCommentSchema } from "@/lib/validations/comment.schema";
 
-const updateSchema = createCommentSchema.pick({ content: true });
+const updateSchema = createCommentSchema.pick({
+  content: true,
+});
 
 export async function GET(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = params.id;
-    if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
+    const id = await getRouteParamId(params);
 
-    // optional auth
-    const supabase = await createClient();
-    const resp = await supabase.auth.getUser();
-    const supaUser = resp?.data?.user ?? null;
-    const error = resp?.error ?? null;
+    const viewer = await getCurrentUser();
 
-    let viewer: any = null;
-    if (!error && supaUser) viewer = await authService.getCurrentUserFromSupabaseUser(supaUser);
+    const comment = await commentService.getCommentById(
+      viewer?.id ?? null,
+      id
+    );
 
-    const comment = await commentService.getCommentById(viewer?.id ?? null, id);
     return NextResponse.json(comment);
-  } catch (err: any) {
-    console.error("GET /api/comments/[id] error:", err);
-    if (err instanceof NotFoundError) return NextResponse.json({ error: err.message }, { status: 404 });
-    if (err instanceof AppError) return NextResponse.json({ error: err.message }, { status: err.statusCode });
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+  } catch (err) {
+    return handleApiError(
+      err,
+      "GET /api/comments/[id]"
+    );
   }
 }
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = params.id;
-    if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
+    const id = await getRouteParamId(params);
 
-    const supabase = await createClient();
-    const resp = await supabase.auth.getUser();
-    const supaUser = resp?.data?.user ?? null;
-    const error = resp?.error ?? null;
-    if (error || !supaUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-    const current = await authService.getCurrentUserFromSupabaseUser(supaUser);
-    if (!current) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+    const current = await requireCurrentUser();
 
     const body = await request.json();
+
     const parsed = updateSchema.parse(body);
 
-    const updated = await commentService.updateComment(current.id, id, { content: parsed.content });
+    const updated =
+      await commentService.updateComment(
+        current.id,
+        id,
+        {
+          content: parsed.content,
+        }
+      );
+
     return NextResponse.json(updated);
-  } catch (err: any) {
-    console.error("PATCH /api/comments/[id] error:", err);
-    if (err instanceof NotFoundError) return NextResponse.json({ error: err.message }, { status: 404 });
-    if (err instanceof AppError) return NextResponse.json({ error: err.message }, { status: err.statusCode });
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+  } catch (err) {
+    return handleApiError(
+      err,
+      "PATCH /api/comments/[id]"
+    );
   }
 }
 
 export async function DELETE(
   _request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = params.id;
-    if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
+    const id = await getRouteParamId(params);
 
-    const supabase = await createClient();
-    const resp = await supabase.auth.getUser();
-    const supaUser = resp?.data?.user ?? null;
-    const error = resp?.error ?? null;
-    if (error || !supaUser) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const current = await requireCurrentUser();
 
-    const current = await authService.getCurrentUserFromSupabaseUser(supaUser);
-    if (!current) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+    const deleted =
+      await commentService.deleteComment(
+        current.id,
+        id
+      );
 
-    const deleted = await commentService.deleteComment(current.id, id);
     return NextResponse.json(deleted);
-  } catch (err: any) {
-    console.error("DELETE /api/comments/[id] error:", err);
-    if (err instanceof NotFoundError) return NextResponse.json({ error: err.message }, { status: 404 });
-    if (err instanceof AppError) return NextResponse.json({ error: err.message }, { status: err.statusCode });
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+  } catch (err) {
+    return handleApiError(
+      err,
+      "DELETE /api/comments/[id]"
+    );
   }
 }
-
 
