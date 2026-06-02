@@ -9,5 +9,6 @@ export function mapNotificationRecordToDto(row: any): NotificationDto {
     body: row.body ?? null,
     data: row.data ?? undefined,
     createdAt: row.created_at ? (row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at)) : null,
+    isRead: Boolean(row.is_read),
   };
 }

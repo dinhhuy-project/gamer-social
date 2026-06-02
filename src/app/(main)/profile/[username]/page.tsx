@@ -3,11 +3,13 @@
 import { use } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { PostCard } from "@/components/post/PostCard";
 import FollowButton from "@/components/profile/FollowButton";
 import { useCurrentUser } from "@/hooks/auth/useCurrentUser";
 import { usePosts } from "@/hooks/posts/usePosts";
+import { useStartConversation } from "@/hooks/chat/useStartConversation";
 import { useUser } from "@/hooks/users/useUser";
 import { ROUTES } from "@/lib/constants/routes";
 
@@ -25,11 +27,13 @@ const Stat = ({ label, value }: { label: string; value: string | number }) => {
 };
 
 export default function ProfilePage({ params }: Props) {
+  const router = useRouter();
   const { username } = use(params);
   const currentUserQuery = useCurrentUser();
   const profileQuery = useUser(username);
   const profile = profileQuery.data;
   const isOwner = Boolean(currentUserQuery.data && profile && currentUserQuery.data.id === profile.id);
+  const { startConversation, isStarting } = useStartConversation(profile?.id);
 
   const postsQuery = usePosts(1, 10, false, profile?.id, Boolean(profile?.id));
   const posts = postsQuery.data?.data ?? [];
@@ -59,6 +63,24 @@ export default function ProfilePage({ params }: Props) {
       </div>
     );
   }
+
+  const handleStartConversation = async () => {
+    if (!profile?.id) return;
+    if (!currentUserQuery.data) {
+      router.push(ROUTES.login);
+      return;
+    }
+    if (currentUserQuery.data.id === profile.id) return;
+
+    try {
+      const conversation = await startConversation();
+      if (conversation?.id) {
+        router.push(ROUTES.conversation(conversation.id));
+      }
+    } catch (error) {
+      console.error("Failed to start conversation:", error);
+    }
+  };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -94,12 +116,14 @@ export default function ProfilePage({ params }: Props) {
                   ) : (
                     <div className="flex flex-wrap gap-3">
                       <FollowButton username={username} />
-                      <Link
-                        href={ROUTES.messages}
-                        className="inline-flex items-center justify-center rounded border border-border bg-card px-4 py-2 text-sm font-semibold text-card-foreground transition hover:border-amber-400/60 hover:text-amber-300"
+                      <button
+                        type="button"
+                        disabled={isStarting}
+                        onClick={handleStartConversation}
+                        className="inline-flex items-center justify-center rounded border border-border bg-card px-4 py-2 text-sm font-semibold text-card-foreground transition hover:border-amber-400/60 hover:text-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        Message
-                      </Link>
+                        {isStarting ? "Đang mở..." : "Message"}
+                      </button>
                     </div>
                   )}
                 </div>

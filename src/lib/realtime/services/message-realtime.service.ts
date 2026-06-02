@@ -8,11 +8,12 @@ export function subscribeToMessages(
   onInsert: (msg: MessageDto) => void
 ) {
   const seen = new Set<string>();
+  const channelName = `${MESSAGES_ALL_CHANNEL}-${Math.random().toString(36).slice(2, 10)}`;
 
   const opts = messagesInsertOpts();
 
   const channel = (supabase as any)
-    .channel(MESSAGES_ALL_CHANNEL)
+    .channel(channelName)
     .on("postgres_changes", opts, (payload: any) => {
       // console.log("[realtime] subscribeToMessages payload:", payload);
       try {
@@ -27,14 +28,14 @@ export function subscribeToMessages(
         console.error("subscribeToMessages: handler error", err);
       }
     })
-    .subscribe((status: string) => {
-      // console.log("[realtime] subscribeToMessages status:", status, { channel: MESSAGES_ALL_CHANNEL, opts });
+    .subscribe(() => {
+      // console.log("[realtime] subscribeToMessages status", { channel: channelName, opts });
     });
 
   return () => {
     try {
       supabase.removeChannel(channel);
-    } catch (err) {
+    } catch {
       // ignore
     }
   };
@@ -46,10 +47,11 @@ export function subscribeToConversationMessages(
   onInsert: (msg: MessageDto) => void
 ) {
   const seen = new Set<string>();
+  const channelName = `${MESSAGES_CHANNEL}-${conversationId}-${Math.random().toString(36).slice(2, 10)}`;
   const opts = { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${conversationId}` };
 
   const channel = (supabase as any)
-    .channel(MESSAGES_CHANNEL)
+    .channel(channelName)
     .on("postgres_changes", opts, (payload: any) => {
       // console.log("[realtime] subscribeToConversationMessages payload:", payload, { conversationId });
       try {
@@ -64,14 +66,14 @@ export function subscribeToConversationMessages(
         console.error("subscribeToConversationMessages: handler error", err);
       }
     })
-    .subscribe((status: string) => {
-      // console.log("[realtime] subscribeToConversationMessages status:", status, { channel: MESSAGES_CHANNEL, opts, conversationId });
+    .subscribe(() => {
+      // console.log("[realtime] subscribeToConversationMessages status", { channel: channelName, opts, conversationId });
     });
 
   return () => {
     try {
       supabase.removeChannel(channel);
-    } catch (err) {
+    } catch {
       // ignore
     }
   };

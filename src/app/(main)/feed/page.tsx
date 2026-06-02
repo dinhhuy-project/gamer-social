@@ -17,7 +17,7 @@ import {
 
 export default function FeedPage() {
   const [page, setPage] = useState(1);
-  const postsQuery = usePosts(page, 10);
+  const postsQuery = usePosts(page, 5);
   const posts = postsQuery.data?.data ?? [];
 
   const totalPages = postsQuery.data?.totalPages ?? 1;

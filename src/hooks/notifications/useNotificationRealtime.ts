@@ -1,7 +1,7 @@
 "use client";
 
-import { useNotificationRealtime as useNotificationRealtimeLib } from "@/lib/realtime/hooks/useNotificationsRealtime";
+import { useNotificationsRealtime } from "@/lib/realtime/hooks/useNotificationsRealtime";
 
 export function useNotificationRealtime(userId?: string) {
-  return useNotificationRealtimeLib(userId);
+  return useNotificationsRealtime(userId);
 }

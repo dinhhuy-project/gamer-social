@@ -16,6 +16,7 @@ export type NotificationDto = {
   body: string | null;
   data?: any;
   createdAt?: string | null;
+  isRead?: boolean;
 };
 
 export { };

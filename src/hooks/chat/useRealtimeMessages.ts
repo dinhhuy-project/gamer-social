@@ -32,6 +32,7 @@ export function useRealtimeMessages(conversationId: string | undefined, page = 1
       return;
     }
     let cleanup: (() => void) | null = null;
+    let isMounted = true;
 
     const init = async () => {
       const { authUserId, appUserId } = await ensureSupabaseClientSession(supabase);
@@ -45,7 +46,7 @@ export function useRealtimeMessages(conversationId: string | undefined, page = 1
         return;
       }
 
-      cleanup = subscribeToConversationMessages(supabase, conversationId!, (dto: MessageDto) => {
+      const unsubscribe = subscribeToConversationMessages(supabase, conversationId!, (dto: MessageDto) => {
         try {
           // update any cached message queries for this conversation
           const queries = queryClient.getQueriesData({ queryKey: QUERY_KEYS.messages.root(conversationId), exact: false });
@@ -78,34 +79,24 @@ export function useRealtimeMessages(conversationId: string | undefined, page = 1
             });
           }
 
-          // update unread counts for current user (increment by 1 unless the message was sent by current user)
-          try {
-            const currentUserId = appUserId;
-            if (currentUserId && dto.senderId !== currentUserId) {
-              // conversation unread
-              queryClient.setQueryData(QUERY_KEYS.unread.conversation(dto.conversationId), (old: any) => {
-                const prev = typeof old === "number" ? old : Number(old ?? 0);
-                return prev + 1;
-              });
-
-              // total unread
-              queryClient.setQueryData(QUERY_KEYS.unread.total(), (old: any) => {
-                const prev = typeof old === "number" ? old : Number(old ?? 0);
-                return prev + 1;
-              });
-            }
-          } catch {
-            // ignore cache update failures
-          }
+          // Unread count updates disabled.
         } catch (err) {
           console.error("useRealtimeMessages: error handling incoming message", err);
         }
       });
+
+      if (!isMounted) {
+        unsubscribe();
+        return;
+      }
+
+      cleanup = unsubscribe;
     };
 
     void init();
 
     return () => {
+      isMounted = false;
       if (cleanup) cleanup();
     };
   }, [conversationId, supabase, queryClient, page, perPage]);

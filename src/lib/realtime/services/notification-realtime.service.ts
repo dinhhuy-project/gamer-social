@@ -8,10 +8,11 @@ export function subscribeToNotifications(
   onInsert: (notif: any) => void
 ) {
   const seen = new Set<string>();
+  const channelName = `${NOTIFICATIONS_CHANNEL}-${userId}-${Math.random().toString(36).slice(2, 10)}`;
   const opts = notificationsInsertOpts(userId as any);
 
   const channel = (supabase as any)
-    .channel(NOTIFICATIONS_CHANNEL)
+    .channel(channelName)
     .on("postgres_changes", opts, (payload: any) => {
       // console.log("[realtime] subscribeToNotifications payload:", payload, { userId });
       try {
@@ -27,7 +28,7 @@ export function subscribeToNotifications(
       }
     })
     .subscribe((status: string) => {
-      // console.log("[realtime] subscribeToNotifications status:", status, { channel: NOTIFICATIONS_CHANNEL, opts, userId });
+      // console.log("[realtime] subscribeToNotifications status:", status, { channel: channelName, opts, userId });
     });
 
   return () => {

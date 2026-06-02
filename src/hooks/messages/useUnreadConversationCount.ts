@@ -3,15 +3,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/lib/queryKeys";
 
-async function fetchConversationUnread(conversationId: string) {
-  const res = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}/unread`, { credentials: "same-origin" });
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    throw new Error(payload?.error ?? "Failed to get unread count");
-  }
-
-  const data = await res.json();
-  return data?.unread ?? 0;
+async function fetchConversationUnread(_conversationId: string) {
+  // Feature disabled: always return 0 without network requests
+  return 0;
 }
 
 export function useUnreadConversationCount(conversationId?: string) {

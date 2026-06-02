@@ -366,27 +366,39 @@ export async function listPosts(
   page = 1,
   perPage = 20,
   marketplace = false,
-  userId?: string | null
+  userId?: string | null,
+  q?: string | null
 ) {
   const take = Math.max(1, Math.min(100, perPage));
   const skip = Math.max(0, (page - 1) * take);
 
-  const where: any = { status: "active" };
+  const filters: any[] = [{ status: "active" }];
 
   if (userId) {
-    where.user_id = userId;
+    filters.push({ user_id: userId });
   }
 
   if (marketplace) {
-    where.post_type = "marketplace";
-    where.listing_status = "approved";
+    filters.push({ post_type: "marketplace", listing_status: "approved" });
   } else if (!userId) {
-    // feed: include regular posts and approved marketplace listings
-    where.OR = [
-      { post_type: "regular" },
-      { AND: [{ post_type: "marketplace" }, { listing_status: "approved" }] },
-    ];
+    filters.push({
+      OR: [
+        { post_type: "regular" },
+        { AND: [{ post_type: "marketplace" }, { listing_status: "approved" }] },
+      ],
+    });
   }
+
+  if (q) {
+    filters.push({
+      OR: [
+        { content: { contains: q, mode: "insensitive" } },
+        { game_name: { contains: q, mode: "insensitive" } },
+      ],
+    });
+  }
+
+  const where = filters.length === 1 ? filters[0] : { AND: filters };
 
   const [total, posts] = await prisma.$transaction([
     prisma.posts.count({ where }),

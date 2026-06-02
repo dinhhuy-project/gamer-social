@@ -13,6 +13,7 @@ export function useMessagesRealtime(): void {
 
   useEffect(() => {
     let cleanup: (() => void) | null = null;
+    let isMounted = true;
 
     const init = async () => {
       const { authUserId, appUserId } = await ensureSupabaseClientSession(supabase);
@@ -27,7 +28,7 @@ export function useMessagesRealtime(): void {
         return;
       }
 
-      cleanup = subscribeToMessages(supabase, (dto) => {
+      const unsubscribe = subscribeToMessages(supabase, (dto) => {
         try {
           // Update conversation lists: move conversation to top and set latestMessage
           const convQueries = queryClient.getQueriesData({ queryKey: QUERY_KEYS.conversations.root(), exact: false });
@@ -44,32 +45,24 @@ export function useMessagesRealtime(): void {
             });
           }
 
-          // Increment unread counts only when sender is not the current user
-          try {
-            const currentUserId = appUserId;
-            if (currentUserId && dto.senderId !== currentUserId) {
-              queryClient.setQueryData(QUERY_KEYS.unread.conversation(dto.conversationId), (old: any) => {
-                const prev = typeof old === "number" ? old : Number(old ?? 0);
-                return prev + 1;
-              });
-
-              queryClient.setQueryData(QUERY_KEYS.unread.total(), (old: any) => {
-                const prev = typeof old === "number" ? old : Number(old ?? 0);
-                return prev + 1;
-              });
-            }
-          } catch {
-            // ignore
-          }
+          // Unread count updates disabled.
         } catch (err) {
           console.error("useMessagesRealtime: error handling incoming message", err);
         }
       });
+
+      if (!isMounted) {
+        unsubscribe();
+        return;
+      }
+
+      cleanup = unsubscribe;
     };
 
     void init();
 
     return () => {
+      isMounted = false;
       if (cleanup) cleanup();
     };
   }, [queryClient, supabase]);

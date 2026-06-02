@@ -4,17 +4,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/lib/queryKeys";
 
 async function postMarkRead(conversationId: string) {
-  const res = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}/read`, {
-    method: "POST",
-    credentials: "same-origin",
-  });
-
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    throw new Error(payload?.error ?? "Failed to mark conversation read");
-  }
-
-  return res.json();
+  // Feature disabled: do not call server, return neutral value
+  return { totalUnreadCount: 0 };
 }
 
 export function useMarkConversationRead() {

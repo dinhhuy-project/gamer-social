@@ -66,6 +66,11 @@ export type PostDTO = {
   updatedAt: string;
 };
 
+export type GlobalSearchResult = {
+  users: PublicUser[];
+  posts: PostDTO[];
+};
+
 export type TagDTO = {
   id: number;
   name: string;

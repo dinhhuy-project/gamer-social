@@ -14,7 +14,10 @@ export function useNotificationsRealtime(userId?: string) {
   useEffect(() => {
     if (!userId) return;
 
-    const cleanup = subscribeToNotifications(supabase, userId, (dto: any) => {
+    let cleanup: (() => void) | null = null;
+    let isMounted = true;
+
+    const unsubscribe = subscribeToNotifications(supabase, userId, (dto: any) => {
       try {
         // update notifications list cache
         const notifQueries = queryClient.getQueriesData({ queryKey: QUERY_KEYS.notifications.root(userId), exact: false });
@@ -60,7 +63,14 @@ export function useNotificationsRealtime(userId?: string) {
       }
     });
 
+    if (!isMounted) {
+      unsubscribe();
+    } else {
+      cleanup = unsubscribe;
+    }
+
     return () => {
+      isMounted = false;
       if (cleanup) cleanup();
     };
   }, [userId, supabase, queryClient]);
