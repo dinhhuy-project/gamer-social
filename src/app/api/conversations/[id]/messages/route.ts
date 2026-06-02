@@ -1,9 +1,8 @@
-import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
-import { authService } from "@/lib/services/auth.service";
 import { messageService } from "@/lib/services/message.service";
 import { AppError, NotFoundError } from "@/lib/services/shared/app-error";
 import { sendMessageSchema } from "@/lib/validations/message.schema";
+import { getCurrentUser, getRouteParamId } from "@/lib/api/route-utils";
 
 function parsePagination(request: Request) {
   const url = new URL(request.url);
@@ -17,23 +16,9 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const conversationId = params.id;
-    if (!conversationId) {
-      return NextResponse.json({ error: "Missing conversation id" }, { status: 400 });
-    }
-
-    const supabase = await createClient();
-    const resp = await supabase.auth.getUser();
-    const supaUser = resp?.data?.user ?? null;
-    const error = resp?.error ?? null;
-    if (error || !supaUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const current = await authService.getCurrentUserFromSupabaseUser(supaUser);
-    if (!current) {
-      return NextResponse.json({ error: "Profile not found" }, { status: 404 });
-    }
+    const conversationId = await getRouteParamId(params as any);
+    const current = await getCurrentUser();
+    if (!current) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const { page, perPage } = parsePagination(request);
     const messageList = await messageService.listMessages(current.id, conversationId, page, perPage);
@@ -55,23 +40,9 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const conversationId = params.id;
-    if (!conversationId) {
-      return NextResponse.json({ error: "Missing conversation id" }, { status: 400 });
-    }
-
-    const supabase = await createClient();
-    const resp = await supabase.auth.getUser();
-    const supaUser = resp?.data?.user ?? null;
-    const error = resp?.error ?? null;
-    if (error || !supaUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const current = await authService.getCurrentUserFromSupabaseUser(supaUser);
-    if (!current) {
-      return NextResponse.json({ error: "Profile not found" }, { status: 404 });
-    }
+    const conversationId = await getRouteParamId(params as any);
+    const current = await getCurrentUser();
+    if (!current) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await request.json();
     const payload = {

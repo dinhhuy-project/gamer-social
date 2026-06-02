@@ -1,8 +1,7 @@
-import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
-import { authService } from "@/lib/services/auth.service";
-import { conversationService } from "@/lib/services/conversation.service";
+import { conversationService } from "@/lib/services";
 import { AppError } from "@/lib/services/shared/app-error";
+import { getCurrentUser } from "@/lib/api/route-utils";
 
 export async function GET(request: Request) {
   try {
@@ -14,18 +13,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Missing otherUserId" }, { status: 400 });
     }
 
-    const supabase = await createClient();
-    const resp = await supabase.auth.getUser();
-    const supaUser = resp?.data?.user ?? null;
-    const error = resp?.error ?? null;
-    if (error || !supaUser) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const current = await authService.getCurrentUserFromSupabaseUser(supaUser);
-    if (!current) {
-      return NextResponse.json({ error: "Profile not found" }, { status: 404 });
-    }
+    const current = await getCurrentUser();
+    if (!current) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const conversation = await conversationService.findConversationBetweenUsers(
       current.id,

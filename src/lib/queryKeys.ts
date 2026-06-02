@@ -11,5 +11,10 @@ export const QUERY_KEYS = {
   notifications: {
     root: (userId?: string) => ["notifications", userId ?? ""],
     list: (userId: string) => ["notifications", userId],
+    unread: (userId: string) => ["notifications", userId, "unread"],
+  },
+  unread: {
+    conversation: (conversationId: string) => ["unread", "conversation", conversationId],
+    total: () => ["unread", "total"],
   },
 };

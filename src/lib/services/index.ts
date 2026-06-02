@@ -9,6 +9,7 @@ export * from "@/lib/services/saved-post.service";
 export * from "@/lib/services/conversation.service";
 export * from "@/lib/services/message.service";
 export * from "@/lib/services/notification.service";
+export * from "@/lib/services/notifications/notification.factory";
 // export * from "@/lib/services/membership.service";
 // export * from "@/lib/services/trade.service";
 // export * from "@/lib/services/admin.service";

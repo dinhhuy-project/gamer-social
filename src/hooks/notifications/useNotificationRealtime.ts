@@ -33,6 +33,15 @@ export function useNotificationRealtime(userId?: string) {
           });
         }
 
+        // increment unread notifications count cache (if present)
+        try {
+          queryClient.setQueryData(QUERY_KEYS.notifications.unread(userId), (old: number | undefined) => {
+            return (old ?? 0) + 1;
+          });
+        } catch (e) {
+          // ignore if cache key not present
+        }
+
         // if this notification references a conversation, update conversation ordering + latest message placeholder
         const conversationId = dto.data?.conversationId ?? dto.data?.conversation_id;
         if (conversationId) {

@@ -7,6 +7,7 @@ import { useMessages } from "./useMessages";
 import { mapMessageRecordToDto } from "@/lib/services/messages/message.mapper";
 import type { MessageDto } from "@/types/message.types";
 import { QUERY_KEYS } from "@/lib/queryKeys";
+import { useAuth } from "@/providers/AuthProvider";
 
 function dedupeMessages(messages: MessageDto[]) {
   const seen = new Set<string>();
@@ -22,6 +23,7 @@ export function useRealtimeMessages(conversationId: string | undefined, page = 1
   const { data: paginated } = useMessages(conversationId, page, perPage);
   const [isConnected, setIsConnected] = useState(false);
   const supabase = useMemo(() => createClient(), []);
+  const { profile } = useAuth();
 
   useEffect(() => {
     if (!conversationId) {
@@ -70,6 +72,26 @@ export function useRealtimeMessages(conversationId: string | undefined, page = 1
               updated.unshift(conv);
               return { ...prev, data: updated };
             });
+          }
+
+          // update unread counts for current user (increment by 1 unless the message was sent by current user)
+          try {
+            const currentUserId = profile?.id;
+            if (currentUserId && dto.senderId !== currentUserId) {
+              // conversation unread
+              queryClient.setQueryData(QUERY_KEYS.unread.conversation(dto.conversationId), (old: any) => {
+                const prev = typeof old === "number" ? old : Number(old ?? 0);
+                return prev + 1;
+              });
+
+              // total unread
+              queryClient.setQueryData(QUERY_KEYS.unread.total(), (old: any) => {
+                const prev = typeof old === "number" ? old : Number(old ?? 0);
+                return prev + 1;
+              });
+            }
+          } catch (e) {
+            // ignore cache update failures
           }
         }
       )
