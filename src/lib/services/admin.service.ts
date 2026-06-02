@@ -441,22 +441,27 @@ export async function reviewMarketplaceListing(input: {
     throw new AppError("Reject reason is required", 400, "REJECT_REASON_REQUIRED");
   }
 
-  await prisma.posts.update({
-    where: { id: input.postId },
-    data: {
-      listing_status: input.action === "approve" ? "approved" : "rejected",
-      listing_reviewed_by: input.adminId,
-      listing_reviewed_at: new Date(),
-      reject_reason: input.action === "approve" ? null : input.rejectReason?.trim(),
-      updated_at: new Date(),
-    },
-  });
+  await prisma.$transaction(async (tx) => {
+    await tx.posts.update({
+      where: { id: input.postId },
+      data: {
+        listing_status: input.action === "approve" ? "approved" : "rejected",
+        listing_reviewed_by: input.adminId,
+        listing_reviewed_at: new Date(),
+        reject_reason: input.action === "approve" ? null : input.rejectReason?.trim(),
+        updated_at: new Date(),
+      },
+    });
 
-  await notificationService.createNotifications({
-    userId: existing.user_id,
-    postId: input.postId,
-    approved: input.action === "approve",
-    rejectReason: input.rejectReason,
+    await notificationService.createNotifications(tx, [
+      {
+        userId: existing.user_id,
+        type: "listing_reviewed",
+        title: input.action === "approve" ? "Your listing has been approved" : "Your listing has been rejected",
+        body: input.action === "reject" ? `Reason: ${input.rejectReason?.trim()}` : null,
+        data: { postId: existing.id, action: input.action },
+      },
+    ], { actorId: input.adminId });
   });
 
   return getPostDetail(input.postId);

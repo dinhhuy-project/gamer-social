@@ -34,7 +34,7 @@ export async function getFollowingCount(userId: string | null | undefined): Prom
   return prisma.follows.count({ where: { follower_id: userId } });
 }
 
-export async function followUser(actorId: string | null | undefined, targetId: string | null | undefined): Promise<FollowStatusDTO> {
+export async function followUser(actorId: string, targetId: string | null | undefined): Promise<FollowStatusDTO> {
   // Permission check: caller must be authenticated
   assertAuth(actorId);
   if (!targetId) throw new AppError("Target user id is required", 400, "INVALID_INPUT");
@@ -127,7 +127,7 @@ export async function followUser(actorId: string | null | undefined, targetId: s
   }
 }
 
-export async function unfollowUser(actorId: string | null | undefined, targetId: string | null | undefined): Promise<FollowStatusDTO> {
+export async function unfollowUser(actorId: string, targetId: string | null | undefined): Promise<FollowStatusDTO> {
   assertAuth(actorId);
   if (!targetId) throw new AppError("Target user id is required", 400, "INVALID_INPUT");
   if (actorId === targetId) throw new AppError("Cannot unfollow yourself", 400, "SELF_UNFOLLOW");
