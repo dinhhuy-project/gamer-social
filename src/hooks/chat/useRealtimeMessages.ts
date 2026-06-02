@@ -5,9 +5,11 @@ import { createClient } from "@/lib/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useMessages } from "./useMessages";
 import { mapMessageRecordToDto } from "@/lib/services/messages/message.mapper";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import type { MessageDto } from "@/types/message.types";
 import { QUERY_KEYS } from "@/lib/queryKeys";
-import { useAuth } from "@/providers/AuthProvider";
+import { subscribeToConversationMessages } from "@/lib/realtime/services/message-realtime.service";
+import { ensureSupabaseClientSession } from "@/lib/realtime/services/session.service";
 
 function dedupeMessages(messages: MessageDto[]) {
   const seen = new Set<string>();
@@ -23,26 +25,28 @@ export function useRealtimeMessages(conversationId: string | undefined, page = 1
   const { data: paginated } = useMessages(conversationId, page, perPage);
   const [isConnected, setIsConnected] = useState(false);
   const supabase = useMemo(() => createClient(), []);
-  const { profile } = useAuth();
 
   useEffect(() => {
     if (!conversationId) {
-      setIsConnected(false);
+      queueMicrotask(() => setIsConnected(false));
       return;
     }
+    let cleanup: (() => void) | null = null;
 
-    const filter = `conversation_id=eq.${conversationId}`;
+    const init = async () => {
+      const { authUserId, appUserId } = await ensureSupabaseClientSession(supabase);
+      // console.log("[realtime] useRealtimeMessages session:", { authUserId, appUserId, conversationId });
+      if (!authUserId) {
+        console.warn("useRealtimeMessages: no auth session available, skipping subscription for", conversationId);
+        return;
+      }
+      if (!appUserId) {
+        console.warn("useRealtimeMessages: auth session found but application user not resolved, skipping subscription for", conversationId);
+        return;
+      }
 
-    const channel = supabase
-      .channel("public:messages")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages", filter },
-        (payload) => {
-          const newRow = (payload as any)?.new;
-          if (!newRow) return;
-          const dto = mapMessageRecordToDto(newRow);
-
+      cleanup = subscribeToConversationMessages(supabase, conversationId!, (dto: MessageDto) => {
+        try {
           // update any cached message queries for this conversation
           const queries = queryClient.getQueriesData({ queryKey: QUERY_KEYS.messages.root(conversationId), exact: false });
           for (const [key] of queries) {
@@ -76,7 +80,7 @@ export function useRealtimeMessages(conversationId: string | undefined, page = 1
 
           // update unread counts for current user (increment by 1 unless the message was sent by current user)
           try {
-            const currentUserId = profile?.id;
+            const currentUserId = appUserId;
             if (currentUserId && dto.senderId !== currentUserId) {
               // conversation unread
               queryClient.setQueryData(QUERY_KEYS.unread.conversation(dto.conversationId), (old: any) => {
@@ -90,17 +94,19 @@ export function useRealtimeMessages(conversationId: string | undefined, page = 1
                 return prev + 1;
               });
             }
-          } catch (e) {
+          } catch {
             // ignore cache update failures
           }
+        } catch (err) {
+          console.error("useRealtimeMessages: error handling incoming message", err);
         }
-      )
-      .subscribe((status) => {
-        setIsConnected(status === "SUBSCRIBED");
       });
+    };
+
+    void init();
 
     return () => {
-      supabase.removeChannel(channel);
+      if (cleanup) cleanup();
     };
   }, [conversationId, supabase, queryClient, page, perPage]);
 

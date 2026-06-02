@@ -137,3 +137,22 @@ export const messageService = {
 };
 
 export default messageService;
+
+// Backwards-compatible top-level API expected by other parts of the app
+export async function deleteMessage(actorId: string | null | undefined, messageId: string) {
+  assertAuth(actorId);
+  const actor = actorId!.trim();
+
+  const message = await prisma.messages.findUnique({ where: { id: messageId } });
+  if (!message) throw new AppError("Message not found", 404, "NOT_FOUND");
+
+  if (message.sender_id !== actor) throw new ForbiddenError("User is not the sender");
+
+  await prisma.messages.update({ where: { id: messageId }, data: { is_deleted: true, updated_at: new Date() } });
+
+  return { success: true };
+}
+
+export async function markConversationRead(userId: string, conversationId: string) {
+  return (await import("@/lib/services/unread/unread.service")).markConversationRead(userId, conversationId);
+}

@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/lib/queryKeys";
 import { mapMessageRecordToDto } from "@/lib/services/messages/message.mapper";
+import { subscribeToConversationMessages } from "@/lib/realtime/services/message-realtime.service";
+import { ensureSupabaseClientSession } from "@/lib/realtime/services/session.service";
 
 export function useConversationRealtime(conversationId?: string) {
   const queryClient = useQueryClient();
@@ -13,14 +15,21 @@ export function useConversationRealtime(conversationId?: string) {
   useEffect(() => {
     if (!conversationId) return;
 
-    const filter = `conversation_id=eq.${conversationId}`;
-    const channel = supabase
-      .channel("public:messages")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter }, (payload) => {
-        const newRow = (payload as any)?.new;
-        if (!newRow) return;
-        const dto = mapMessageRecordToDto(newRow);
+    let cleanup: (() => void) | null = null;
 
+    const init = async () => {
+      const { authUserId, appUserId } = await ensureSupabaseClientSession(supabase);
+      // console.log("[realtime] useConversationRealtime session:", { authUserId, appUserId, conversationId });
+      if (!authUserId) {
+        console.warn("useConversationRealtime: no auth session available, skipping subscription");
+        return;
+      }
+      if (!appUserId) {
+        console.warn("useConversationRealtime: auth session found but application user not resolved, skipping subscription");
+        return;
+      }
+
+      cleanup = subscribeToConversationMessages(supabase, conversationId, (dto) => {
         // Update conversation detail cache
         queryClient.setQueryData(QUERY_KEYS.conversation(conversationId), (old: any) => {
           if (!old) return old;
@@ -41,11 +50,13 @@ export function useConversationRealtime(conversationId?: string) {
             return { ...prev, data: updated };
           });
         }
-      })
-      .subscribe();
+      });
+    };
+
+    void init();
 
     return () => {
-      supabase.removeChannel(channel);
+      if (cleanup) cleanup();
     };
   }, [conversationId, supabase, queryClient]);
 }

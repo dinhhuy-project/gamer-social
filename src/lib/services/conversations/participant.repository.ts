@@ -22,7 +22,7 @@ export async function updateLastReadAt(userId: string, conversationId: string) {
 
 /**
  * Get unread count for a single conversation for a user.
- * Unread = messages in conversation where sender != user AND created_at > last_read_at (or last_read_at IS NULL -> all messages)
+ * Unread = messages in conversation where sender != user AND sent_at > last_read_at (or last_read_at IS NULL -> all messages)
  */
 export async function getUnreadCount(conversationId: string, userId: string) {
   const participant = await prisma.conversation_participants.findUnique({
@@ -36,7 +36,7 @@ export async function getUnreadCount(conversationId: string, userId: string) {
     return prisma.messages.count({ where: { conversation_id: conversationId, sender_id: { not: userId } } });
   }
 
-  return prisma.messages.count({ where: { conversation_id: conversationId, sender_id: { not: userId }, created_at: { gt: participant.last_read_at } } });
+  return prisma.messages.count({ where: { conversation_id: conversationId, sender_id: { not: userId }, sent_at: { gt: participant.last_read_at } } });
 }
 
 /**
@@ -49,7 +49,7 @@ export async function getUnreadCountsForUser(userId: string) {
     SELECT m.conversation_id, COUNT(*)::int AS unread
     FROM messages m
     JOIN conversation_participants p ON p.conversation_id = m.conversation_id AND p.user_id = ${userId}
-    WHERE m.sender_id != ${userId} AND (p.last_read_at IS NULL OR m.created_at > p.last_read_at)
+    WHERE m.sender_id != ${userId} AND (p.last_read_at IS NULL OR m.sent_at > p.last_read_at)
     GROUP BY m.conversation_id
   `;
 

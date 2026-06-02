@@ -4,6 +4,8 @@ import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { Prisma } from "@/generated/prisma/client";
 import { AppError } from "./shared/app-error";
 import { assertExists, assertAuth, assertRole } from "./shared/assert";
+import { createClient } from "@/lib/supabase/server";
+import type { CurrentUser } from "@/types/current-user";
 
 export type AuthUserDTO = {
   id: string;
@@ -266,4 +268,55 @@ export const authService = {
 };
 
 export default authService;
+
+// --- Convenience helpers that return a lightweight `CurrentUser` DTO ---
+async function dtoToCurrentUser(dto: AuthUserDTO | null): Promise<CurrentUser | null> {
+  if (!dto) return null;
+  // `authId` should be present for mapped users (it represents `auth.users.id`).
+  assertExists(dto.authId, "Mapped user missing authId");
+  return {
+    id: dto.id,
+    authId: dto.authId!,
+    username: dto.username,
+    displayName: dto.displayName ?? dto.username,
+    avatarUrl: dto.avatarUrl ?? null,
+  };
+}
+
+/**
+ * Resolve the current user from a Supabase `User` object or server session.
+ * This returns a minimal `CurrentUser` abstraction used across the app.
+ */
+export async function getCurrentUser(supabaseUser?: SupabaseUser | null): Promise<CurrentUser | null> {
+  let supa = supabaseUser ?? null;
+  if (!supa) {
+    const supabase = await createClient();
+    try {
+      const resp = await supabase.auth.getUser();
+      supa = resp.data?.user ?? null;
+    } catch (err) {
+      supa = null;
+    }
+  }
+
+  if (!supa) return null;
+  const dto = await getCurrentUserFromSupabaseUser(supa);
+  return dtoToCurrentUser(dto);
+}
+
+export async function getCurrentUserOrThrow(): Promise<CurrentUser> {
+  const u = await getCurrentUser();
+  if (!u) throw new AppError("Not authenticated", 401, "UNAUTHORIZED");
+  return u;
+}
+
+export async function getCurrentUserId(): Promise<string | null> {
+  const u = await getCurrentUser();
+  return u?.id ?? null;
+}
+
+export async function getCurrentAuthId(): Promise<string | null> {
+  const u = await getCurrentUser();
+  return u?.authId ?? null;
+}
 
