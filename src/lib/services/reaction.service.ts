@@ -5,7 +5,7 @@ import { assertAuth, assertExists } from "./shared/assert";
 import type {
   reaction_target_type,
   reaction_type,
-} from "@/generated/prisma/enums";
+} from "@prisma/client/enums";
 
 type CacheEntry<T> = {
   expiresAt: number;

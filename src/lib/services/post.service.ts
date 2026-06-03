@@ -4,7 +4,7 @@ import { createNotifications } from "@/lib/services";
 import { AppError, NotFoundError } from "./shared/app-error";
 import { assertAuth, assertExists, assertRole } from "./shared/assert";
 import type { PublicUser, PaginatedResponse } from "@/types/api.types";
-import { Prisma } from "@/generated/prisma/client";
+import { Prisma } from "@prisma/client/client";
 import { tagService } from "./tag.service";
 import { commentService } from "./comment.service";
 

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@/generated/prisma/client";
+import type { Prisma } from "@prisma/client/client";
 import type { NotificationCreateInput, NotificationDto } from "@/types/notification.types";
 import { mapNotificationRecordToDto } from "./notification.mapper";
 
