@@ -188,9 +188,7 @@ async function getReactionCounts(postIds: string[]) {
     _count: { _all: true },
   });
 
-  return new Map(
-    rows.map((row: { target_id: string; _count: { _all: number } }) => [row.target_id, row._count._all])
-  );
+  return new Map(rows.map((row) => [row.target_id, row._count._all]));
 }
 
 async function getReactionSummary(postId: string) {
@@ -203,9 +201,7 @@ async function getReactionSummary(postId: string) {
     _count: { _all: true },
   });
 
-  return Object.fromEntries(
-    rows.map((row: { type: string; _count: { _all: number } }) => [row.type, row._count._all])
-  );
+  return Object.fromEntries(rows.map((row) => [row.type, row._count._all]));
 }
 
 function buildPostsWhere(input: GetPostsInput, forceMarketplace = false): Prisma.postsWhereInput {
