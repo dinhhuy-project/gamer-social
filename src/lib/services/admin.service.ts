@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client/client";
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { notificationService } from "@/lib/services";
 import { AppError, NotFoundError } from "@/lib/services/shared/app-error";

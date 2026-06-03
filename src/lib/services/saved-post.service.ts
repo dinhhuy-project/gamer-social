@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { AppError } from "./shared/app-error";
 import { assertAuth, assertExists } from "./shared/assert";
-import { Prisma } from "@prisma/client/client";
+import { Prisma } from "@/generated/prisma/client";
 import type { PaginatedResponse } from "@/types/api.types";
 import { getPostById } from "./post.service";
 import type { PostDTO as PostDTOService } from "./post.service";

@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { createNotifications } from "@/lib/services";
-import { Prisma } from "@prisma/client/client";
+import { Prisma } from "@/generated/prisma/client";
 import { AppError } from "./shared/app-error";
 import { assertAuth, assertExists } from "./shared/assert";
 

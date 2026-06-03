@@ -3,8 +3,8 @@ import { generateSlug } from "@/lib/utils/slug";
 import { AppError } from "./shared/app-error";
 import { assertAuth, assertExists, assertRole } from "./shared/assert";
 import type { PaginatedResponse } from "@/types/api.types";
-import { Prisma } from "@prisma/client/client";
-import type { tagsModel } from "@prisma/client/models/tags";
+import { Prisma } from "@/generated/prisma/client";
+import type { tagsModel } from "@/generated/prisma/models/tags";
 
 export type TagDTO = {
   id: number;

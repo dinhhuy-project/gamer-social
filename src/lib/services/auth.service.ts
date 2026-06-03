@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
-import { Prisma } from "@prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import { AppError } from "./shared/app-error";
 import { assertExists, assertAuth, assertRole } from "./shared/assert";
 import { createClient } from "@/lib/supabase/server";
@@ -57,7 +57,7 @@ async function setSupabaseUserMetadata(
     await (supabaseAdmin.auth as any).admin.updateUserById(authId, {
       user_metadata: { internal_user_id: internalId, ...(role ? { role } : {}) },
     });
-  } catch {
+  } catch (e) {
     // ignore failures to avoid breaking auth flow
   }
 }
@@ -115,7 +115,7 @@ export async function getOrCreateUserBySupabaseUser(
   if (email) {
     const byEmail = await prisma.users.findUnique({ where: { email } });
     if (byEmail) {
-      const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const updated = await prisma.$transaction(async (tx) => {
         const u = await tx.users.update({
           where: { id: byEmail.id },
           data: {
@@ -134,7 +134,7 @@ export async function getOrCreateUserBySupabaseUser(
               provider_uid: supabaseUser.id,
             },
           });
-        } catch {
+        } catch (err) {
           // ignore unique constraint on oauth_providers
         }
 
@@ -156,7 +156,7 @@ export async function getOrCreateUserBySupabaseUser(
   while (attempt < maxAttempts) {
     const candidate = attempt === 0 ? base : `${base}-${Math.floor(Math.random() * 90000)}`;
     try {
-      const created = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const created = await prisma.$transaction(async (tx) => {
         const u = await tx.users.create({
           data: {
             username: candidate,
@@ -176,7 +176,7 @@ export async function getOrCreateUserBySupabaseUser(
               provider_uid: supabaseUser.id,
             },
           });
-        } catch {
+        } catch (err) {
           // ignore since provider mapping is optional
         }
 
@@ -188,7 +188,7 @@ export async function getOrCreateUserBySupabaseUser(
       return toPublicUser(created);
     } catch (err: any) {
       // Prisma unique constraint error
-      if (err && err.code === "P2002") {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
         const targets = (err.meta as any)?.target;
         // username conflict -> retry with new candidate
         if (Array.isArray(targets) && targets.includes("username")) {
@@ -242,7 +242,7 @@ export async function getCurrentUserByAuthId(authId: string) {
     const supaUser: SupabaseUser | null = resp?.data?.user ?? null;
     if (!supaUser) return null;
     return getOrCreateUserBySupabaseUser(supaUser);
-  } catch {
+  } catch (err) {
     return null;
   }
 }
@@ -294,7 +294,7 @@ export async function getCurrentUser(supabaseUser?: SupabaseUser | null): Promis
     try {
       const resp = await supabase.auth.getUser();
       supa = resp.data?.user ?? null;
-    } catch {
+    } catch (err) {
       supa = null;
     }
   }
