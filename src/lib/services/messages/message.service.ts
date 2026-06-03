@@ -134,6 +134,8 @@ export async function listMessages(
 export const messageService = {
   createMessage,
   listMessages,
+  createSystemMessage,
+  createSystemMessageTx,
 };
 
 export default messageService;
@@ -155,4 +157,35 @@ export async function deleteMessage(actorId: string | null | undefined, messageI
 
 export async function markConversationRead(userId: string, conversationId: string) {
   return (await import("@/lib/services/unread/unread.service")).markConversationRead(userId, conversationId);
+}
+
+/**
+ * Create a system message inside an existing transaction.
+ * This is intended to be called from other services that manage their own transaction scope.
+ */
+export async function createSystemMessageTx(tx: any, conversationId: string, senderId: string, content: string) {
+  if (!conversationId) throw new AppError("conversationId is required", 400, "INVALID_INPUT");
+  if (!senderId) throw new AppError("senderId is required", 400, "INVALID_INPUT");
+
+  const message = await createMessageTx(tx, {
+    conversationId,
+    senderId,
+    content: content ?? null,
+    mediaUrls: [],
+  });
+
+  await updateConversationUpdatedAtTx(tx, conversationId);
+
+  return message;
+}
+
+/**
+ * Convenience wrapper that creates a system message in its own transaction.
+ */
+export async function createSystemMessage(senderId: string | null | undefined, conversationId: string, content: string) {
+  assertAuth(senderId);
+
+  return prisma.$transaction(async (tx) => {
+    return createSystemMessageTx(tx, conversationId, senderId as string, content);
+  });
 }

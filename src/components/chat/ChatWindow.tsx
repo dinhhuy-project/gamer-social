@@ -6,6 +6,7 @@ import { useRealtimeMessages } from "@/hooks/chat/useRealtimeMessages";
 import { useMarkConversationRead } from "@/hooks/messages/useMarkConversationRead";
 import MessageBubble from "./MessageBubble";
 import MessageInput from "./MessageInput";
+import TradePanel from "./trade/TradePanel";
 import { useAuth } from "@/providers/AuthProvider";
 
 type Props = {
@@ -45,6 +46,9 @@ export function ChatWindow({ conversationId }: Props) {
       <div className="border-b border-zinc-800 p-3">
         <div className="text-sm font-semibold text-white">{convo?.participants?.map((p) => p.displayName ?? p.username).join(", ")}</div>
         <div className="text-xs text-zinc-400">{convo?.trade ? "Trade conversation" : ""}</div>
+        <div className="mt-2">
+          <TradePanel conversationId={conversationId!} />
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
