@@ -18,9 +18,11 @@ import type { TagDTO } from "@/types/api.types";
 export function CreatePostModal({
   availableTags = [],
   onCreated,
+  defaultPostType,
 }: {
   availableTags?: TagDTO[];
   onCreated?: () => void;
+  defaultPostType?: "regular" | "marketplace";
 }) {
   const [open, setOpen] = useState(false);
   const qc = useQueryClient();
@@ -65,6 +67,7 @@ export function CreatePostModal({
 
         <div>
           <PostForm
+            defaultPostType={defaultPostType}
             availableTags={resolvedTags}
             onSuccess={() => {
               setOpen(false);

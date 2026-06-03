@@ -30,6 +30,7 @@ type PostFormProps = {
     gameName?: string | null;
   };
   availableTags: Tag[];
+  defaultPostType?: "regular" | "marketplace";
   onSuccess?: (postId: string) => void;
   onCancel?: () => void;
 };
@@ -39,13 +40,16 @@ export function PostForm({
   availableTags,
   onSuccess,
   onCancel,
+  defaultPostType,
 }: PostFormProps) {
   const { profile } = useAuth();
   const isEdit = !!editPost;
   const { createMutation, updateMutation } = usePostMutations();
 
   const [content, setContent] = useState(editPost?.content ?? "");
-  const [postType, setPostType] = useState<"regular" | "marketplace">(editPost?.postType ?? "regular");
+  const [postType, setPostType] = useState<"regular" | "marketplace">(
+    editPost?.postType ?? defaultPostType ?? "regular"
+  );
   const [selectedTags, setSelectedTags] = useState<number[]>(
     editPost?.postTags.map(pt => pt.tag.id) ?? []
   );
@@ -144,8 +148,8 @@ export function PostForm({
 
   return (
     <form onSubmit={handleSubmit} className="bg-[#1e2128] rounded-2xl border border-[#2e3240]/60 overflow-hidden">
-      {/* ── Post type switcher (members only) ─────────────── */}
-      {isMember && (
+      {/* ── Post type switcher (members only). Hidden when defaultPostType === 'marketplace' ─────────────── */}
+      {isMember && defaultPostType !== "marketplace" && (
         <div className="flex border-b border-[#2e3240]">
           {(["regular", "marketplace"] as const).map(type => (
             <button

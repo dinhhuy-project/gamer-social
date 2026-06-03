@@ -13,12 +13,16 @@ import {
   PaginationNext,
   PaginationEllipsis,
 } from "@/components/ui/pagination";
+import CreatePostModal from "@/components/post/CreatePostModal";
+import { useAuth } from "@/providers/AuthProvider";
 
 export default function MarketplacePage() {
   const [page, setPage] = useState(1);
   const postsQuery = usePosts(page, 6, true);
   const posts = postsQuery.data?.data ?? [];
   const totalPages = postsQuery.data?.totalPages ?? 1;
+
+  const { profile } = useAuth();
 
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
   const visiblePosts = posts.filter((p) => !removedIds.has(p.id));
@@ -55,6 +59,12 @@ export default function MarketplacePage() {
           <p className="text-sm text-zinc-400">Mua bán và trao đổi vật phẩm game</p>
         </div>
       </header>
+
+      {profile && (profile.role === "member" || profile.role === "admin") && (
+        <div className="mb-4 max-w-3xl">
+          <CreatePostModal availableTags={[]} onCreated={() => setPage(1)} defaultPostType="marketplace" />
+        </div>
+      )}
 
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
         {postsQuery.isLoading &&
