@@ -27,6 +27,9 @@ import { usePostMutations } from "@/hooks/posts/usePostMutations";
 import { ROUTES } from "@/lib/constants/routes";
 import type { Post } from "@/types/post.types";
 import { AvatarFallback } from "@/components/common/UserAvatar";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { useStartConversation } from "@/hooks/chat/useStartConversation";
 
 type PostCardProps = {
   post: Post;
@@ -50,6 +53,8 @@ export function PostCard({
   const isOwner = profile?.id === post.author.id;
   const isAdmin = profile?.role === "admin";
   const { deleteMutation, hideMutation } = usePostMutations();
+  const router = useRouter();
+  const { startConversation, isStarting } = useStartConversation(post.author.id);
   const shareStateQuery = usePostShareState(post.id);
   const sharesQuery = usePostShares(post.id, 1, 1);
 
@@ -80,6 +85,24 @@ export function PostCard({
       await hideMutation.mutateAsync(post.id);
       setHidden(true);
     } catch {/* toast error */ }
+  }
+
+  async function handleContact() {
+    if (!post.author?.id) return;
+    if (!profile) {
+      router.push(ROUTES.login);
+      return;
+    }
+    if (profile.id === post.author.id) return;
+
+    try {
+      const conversation = await startConversation();
+      if (conversation?.id) {
+        router.push(ROUTES.conversation(conversation.id));
+      }
+    } catch (err) {
+      console.error("Failed to start conversation:", err);
+    }
   }
 
   return (
@@ -272,6 +295,19 @@ export function PostCard({
             }
             onShareClick={() => setShareOpen(true)}
           />
+
+          {post.postType === "marketplace" && (
+            <div className="mt-3 flex items-center justify-end gap-2">
+              <Button
+                onClick={handleContact}
+                disabled={isStarting || profile?.id === post.author.id}
+                size="sm"
+                variant="secondary"
+              >
+                {isStarting ? "Đang mở..." : "Liên hệ ngay"}
+              </Button>
+            </div>
+          )}
         </div>
       </article>
 
