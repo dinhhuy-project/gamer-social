@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import {
   Bell,
@@ -11,12 +11,18 @@ import {
   Monitor,
   Save,
   Shield,
+  Sparkles,
   User2,
 } from "lucide-react";
 
 import { useTheme } from "next-themes";
 
 import { useCurrentUser } from "@/hooks/auth/useCurrentUser";
+import {
+  useConfirmMembershipPayment,
+  useMembershipCheckout,
+  useMembershipStatus,
+} from "@/hooks/membership/useMembership";
 
 import {
   Card,
@@ -71,44 +77,113 @@ export default function SettingsPage() {
   const [pushNotifications, setPushNotifications] =
     useState(false);
 
+  const [paymentRef, setPaymentRef] = useState("");
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
+  const [checkoutExpiresAt, setCheckoutExpiresAt] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"profile" | "membership" | "notifications" | "security">("profile");
+  const autoConfirmAttempted = useRef(false);
+
+  const membershipStatusQuery = useMembershipStatus();
+  const membershipCheckout = useMembershipCheckout();
+  const membershipConfirm = useConfirmMembershipPayment();
+
   const [selectedTheme, setSelectedTheme] =
     useState<"light" | "dark" | "system">(
       "dark"
     );
 
+  function handleTabChange(value: string) {
+    if (value === "profile" || value === "membership" || value === "notifications" || value === "security") {
+      setActiveTab(value as "profile" | "membership" | "notifications" | "security");
+    }
+  }
+
   useEffect(() => {
     if (!user) return;
 
-    setDisplayName(
-      (user as any)?.display_name ??
-      (user as any)?.name ??
-      ""
-    );
+    queueMicrotask(() => {
+      setDisplayName(
+        (user as any)?.display_name ??
+        (user as any)?.name ??
+        ""
+      );
 
-    setBio((user as any)?.bio ?? "");
+      setBio((user as any)?.bio ?? "");
 
-    setEmailNotifications(
-      Boolean(
-        (user as any)?.email_notifications
-      )
-    );
+      setEmailNotifications(
+        Boolean(
+          (user as any)?.email_notifications
+        )
+      );
 
-    setPushNotifications(
-      Boolean(
-        (user as any)?.push_notifications
-      )
-    );
+      setPushNotifications(
+        Boolean(
+          (user as any)?.push_notifications
+        )
+      );
+    });
   }, [user]);
 
   useEffect(() => {
-    if (theme) {
+    if (!theme) return;
+
+    queueMicrotask(() => {
       setSelectedTheme(
         theme as "light" | "dark" | "system"
       );
-    }
+    });
   }, [theme]);
 
-  function handleSave() {
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (autoConfirmAttempted.current) return;
+
+    queueMicrotask(() => {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get("tab");
+
+      if (tab === "membership" || tab === "notifications" || tab === "security" || tab === "profile") {
+        setActiveTab(tab as "profile" | "membership" | "notifications" | "security");
+      }
+
+      const paymentRefParam =
+        params.get("paymentRef") ??
+        params.get("paymentLinkId") ??
+        params.get("id") ??
+        params.get("orderCode") ??
+        params.get("order_code");
+      const statusParam = params.get("status")?.toLowerCase();
+      const codeParam = params.get("code");
+
+      const isSuccess =
+        statusParam === "paid" ||
+        statusParam === "success" ||
+        statusParam === "00" ||
+        codeParam === "00";
+      const shouldAutoConfirm =
+        Boolean(paymentRefParam) &&
+        (isSuccess || tab === "membership");
+
+      if (shouldAutoConfirm && paymentRefParam) {
+        autoConfirmAttempted.current = true;
+        setPaymentRef(paymentRefParam);
+        setCheckoutUrl(null);
+        setMessage("Đã phát hiện thanh toán PayOS. Đang xác nhận...");
+
+        membershipConfirm.mutateAsync({ paymentRef: paymentRefParam })
+          .then(() => {
+            setMessage("Thanh toán đã được xác nhận. Membership được cập nhật.");
+          })
+          .catch((err: any) => {
+            setError(err?.message ?? "Không thể xác nhận giao dịch tự động");
+          });
+      }
+    });
+  }, [membershipConfirm]);
+
+  async function handleSave() {
     console.log({
       displayName,
       bio,
@@ -116,6 +191,59 @@ export default function SettingsPage() {
       pushNotifications,
       selectedTheme,
     });
+  }
+
+  async function handleStartMembership() {
+    setMessage(null);
+    setError(null);
+    setCheckoutUrl(null);
+
+    try {
+      const redirectUrl = new URL(window.location.href);
+      redirectUrl.searchParams.set("tab", "membership");
+      const returnUrl = redirectUrl.toString();
+
+      const session = await membershipCheckout.mutateAsync({ returnUrl });
+      setPaymentRef(session.paymentRef);
+      setCheckoutUrl(session.checkoutUrl);
+      setMessage("Đã tạo link thanh toán PayOS. Vui lòng bấm nút mở để tiếp tục.");
+      setCheckoutExpiresAt(session.checkoutExpiresAt);
+      setActiveTab("membership");
+    } catch (err: any) {
+      setError(err?.message ?? "Không thể tạo phiên thanh toán");
+    }
+  }
+
+  function handleOpenCheckout() {
+    if (!checkoutUrl) {
+      setError("Không tìm thấy đường dẫn thanh toán. Vui lòng tạo lại phiên thanh toán.");
+      return;
+    }
+
+    if (checkoutExpiresAt && Date.now() > new Date(checkoutExpiresAt).getTime()) {
+      setError("Phiên checkout đã hết hạn sau 10 phút. Vui lòng tạo lại phiên thanh toán.");
+      return;
+    }
+
+    window.open(checkoutUrl, "_blank");
+  }
+
+  async function handleConfirmPayment() {
+    setMessage(null);
+    setError(null);
+
+    if (!paymentRef.trim()) {
+      setError("Vui lòng nhập paymentRef");
+      return;
+    }
+
+    try {
+      await membershipConfirm.mutateAsync({ paymentRef: paymentRef.trim() });
+      setMessage("Thanh toán đã được xác nhận. Tình trạng membership được cập nhật.");
+      setPaymentRef("");
+    } catch (err: any) {
+      setError(err?.message ?? "Không thể xác nhận thanh toán");
+    }
   }
 
   return (
@@ -128,6 +256,7 @@ export default function SettingsPage() {
         text-white
       "
     >
+      <div id="payos-checkout" className="hidden" />
       <div className="mx-auto max-w-7xl">
         {/* HEADER */}
         <div className="mb-8">
@@ -153,7 +282,8 @@ export default function SettingsPage() {
         </div>
 
         <Tabs
-          defaultValue="profile"
+          value={activeTab}
+          onValueChange={handleTabChange}
           className="space-y-6"
         >
           {/* TABS */}
@@ -177,6 +307,18 @@ export default function SettingsPage() {
             >
               <User2 className="mr-2 h-4 w-4" />
               Profile
+            </TabsTrigger>
+
+            <TabsTrigger
+              value="membership"
+              className="
+                rounded-xl
+                data-[state=active]:bg-orange-500
+                data-[state=active]:text-black
+              "
+            >
+              <Sparkles className="mr-2 h-4 w-4" />
+              Membership
             </TabsTrigger>
 
             <TabsTrigger
@@ -469,6 +611,191 @@ export default function SettingsPage() {
                   </CardContent>
                 </Card>
               </div>
+            </div>
+          </TabsContent>
+
+          {/* MEMBERSHIP */}
+          <TabsContent value="membership">
+            <div className="grid gap-6 lg:grid-cols-2">
+              <Card
+                className="
+                  border-orange-500/20
+                  bg-zinc-950
+                  shadow-[0_0_40px_rgba(255,115,0,0.06)]
+                "
+              >
+                <CardHeader>
+                  <CardTitle>Membership</CardTitle>
+                  <CardDescription>
+                    Unlock premium features and earn priority access
+                    for 30 days.
+                  </CardDescription>
+                </CardHeader>
+
+                <CardContent className="space-y-6">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <h3 className="text-lg font-semibold">
+                          Membership Status
+                        </h3>
+                        <p className="text-sm text-zinc-500">
+                          Xem trạng thái đăng ký tại đây.
+                        </p>
+                      </div>
+
+                      <span
+                        className="
+                          rounded-full
+                          bg-orange-500/10
+                          px-3
+                          py-1
+                          text-sm
+                          font-semibold
+                          text-orange-300
+                        "
+                      >
+                        {membershipStatusQuery.isLoading
+                          ? "Đang tải..."
+                          : membershipStatusQuery.data?.isActive
+                            ? "Đang hoạt động"
+                            : "Chưa active"}
+                      </span>
+                    </div>
+
+                    <div className="grid gap-2 rounded-3xl bg-black/60 p-4 text-sm text-zinc-300">
+                      <div className="flex items-center justify-between">
+                        <span>Ngày còn lại</span>
+                        <span className="font-semibold text-white">
+                          {membershipStatusQuery.isLoading
+                            ? "—"
+                            : membershipStatusQuery.data?.daysLeft ?? "0"}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <span>Hạn hiệu lực</span>
+                        <span className="font-semibold text-white">
+                          {membershipStatusQuery.isLoading
+                            ? "—"
+                            : membershipStatusQuery.data?.expiresAt
+                              ? new Date(membershipStatusQuery.data.expiresAt).toLocaleDateString("vi-VN", {
+                                day: "2-digit",
+                                month: "2-digit",
+                                year: "numeric",
+                              })
+                              : "Chưa có"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 rounded-3xl bg-black/60 p-4 text-sm text-zinc-300">
+                      <p className="font-semibold text-white">
+                        Benefits
+                      </p>
+                      <ul className="space-y-2 pl-4 text-sm text-zinc-400">
+                        <li>• Truy cập nội dung VIP</li>
+                        <li>• Ưu tiên hỗ trợ</li>
+                        <li>• Ưu đãi trong marketplace</li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  {error ? (
+                    <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-100">
+                      {error}
+                    </div>
+                  ) : null}
+
+                  {message ? (
+                    <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-100">
+                      {message}
+                    </div>
+                  ) : null}
+
+                  <div className="grid gap-3">
+                    <Button
+                      onClick={handleStartMembership}
+                      className="h-14 rounded-xl bg-orange-500 text-black hover:bg-orange-400"
+                      disabled={membershipCheckout.isPending}
+                    >
+                      {membershipCheckout.isPending
+                        ? "Đang tạo phiên thanh toán..."
+                        : membershipStatusQuery.data?.isActive
+                          ? "Tạo lại link gia hạn"
+                          : "Tạo link thanh toán"
+                      }
+                    </Button>
+
+                    {checkoutUrl ? (
+                      <Button
+                        variant="secondary"
+                        onClick={handleOpenCheckout}
+                        className="h-14 rounded-xl border border-orange-500/20 bg-white/5 text-white hover:bg-orange-500/10"
+                      >
+                        Mở PayOS checkout
+                      </Button>
+                    ) : null}
+
+                    {checkoutExpiresAt ? (
+                      <p className="text-sm text-zinc-400">
+                        Phiên checkout sẽ hết hạn vào {new Date(checkoutExpiresAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}.
+                      </p>
+                    ) : null}
+
+                    <Button
+                      variant="outline"
+                      onClick={handleConfirmPayment}
+                      className="h-14 rounded-xl border-orange-500/20 text-white hover:bg-orange-500/10"
+                      disabled={membershipConfirm.isPending}
+                    >
+                      {membershipConfirm.isPending
+                        ? "Đang xác nhận..."
+                        : "Xác nhận thanh toán"
+                      }
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card
+                className="
+                  border-orange-500/20
+                  bg-zinc-950
+                  shadow-[0_0_40px_rgba(255,115,0,0.06)]
+                "
+              >
+                <CardHeader>
+                  <CardTitle>Payment Reference</CardTitle>
+                  <CardDescription>
+                    Dán paymentRef nếu PayOS không tự động xác nhận.
+                  </CardDescription>
+                </CardHeader>
+
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Payment Ref</Label>
+                    <Input
+                      value={paymentRef}
+                      onChange={(e) => setPaymentRef(e.target.value)}
+                      className="
+                        h-12
+                        border-orange-500/20
+                        bg-black
+                        text-white
+                        placeholder:text-zinc-600
+                        focus-visible:ring-orange-500
+                      "
+                      placeholder="Nhập paymentRef"
+                    />
+                  </div>
+
+                  <p className="text-sm text-zinc-500">
+                    Sau khi hoàn tất thanh toán PayOS, nếu membership vẫn chưa cập nhật,
+                    bạn có thể dán mã thanh toán và nhấn xác nhận.
+                  </p>
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
 

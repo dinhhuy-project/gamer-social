@@ -11,11 +11,11 @@ import { UserTable } from "@/components/admin/users/UserTable";
 import { ADMIN_USERS_TEXT } from "@/components/admin/users/admin-users.constants";
 import { Button } from "@/components/ui/button";
 import { useCurrentUser } from "@/hooks/auth/useCurrentUser";
-import { useAdminUser } from "@/hooks/useAdminUser";
-import { useAdminUserMutations } from "@/hooks/useAdminUserMutations";
-import { useAdminUsers } from "@/hooks/useAdminUsers";
+import { useAdminUser } from "@/hooks/admin/useAdminUser";
+import { useAdminUserMutations } from "@/hooks/admin/useAdminUserMutations";
+import { useAdminUsers } from "@/hooks/admin/useAdminUsers";
 
-import type { AdminUsersFilters } from "@/hooks/useAdminUsers";
+import type { AdminUsersFilters } from "@/hooks/admin/useAdminUsers";
 
 const PAGE_SIZE = 20;
 

@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { ADMIN_USERS_TEXT } from "@/components/admin/users/admin-users.constants";
 
-import type { AdminUsersFilters } from "@/hooks/useAdminUsers";
+import type { AdminUsersFilters } from "@/hooks/admin/useAdminUsers";
 import type { UserRole } from "@/types/api.types";
 
 type UserFiltersProps = {

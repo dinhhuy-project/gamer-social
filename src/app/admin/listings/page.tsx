@@ -13,9 +13,9 @@ import { ListingReviewModal } from "@/components/admin/posts/ListingReviewModal"
 import { ListingStatusBadge } from "@/components/admin/posts/ListingStatusBadge";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils/format";
-import { useAdminPost, useUpdateAdminPostStatus } from "@/hooks/useAdminPost";
-import { useMarketplaceListings } from "@/hooks/useMarketplaceListings";
-import { useReviewListing } from "@/hooks/useReviewListing";
+import { useAdminPost, useUpdateAdminPostStatus } from "@/hooks/admin/useAdminPost";
+import { useMarketplaceListings } from "@/hooks/admin/useMarketplaceListings";
+import { useReviewListing } from "@/hooks/admin/useReviewListing";
 
 import type { ListingStatus } from "@/types/api.types";
 

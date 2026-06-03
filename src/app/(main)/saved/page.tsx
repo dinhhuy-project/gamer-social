@@ -17,14 +17,14 @@ import {
 
 export default function SavedPage() {
   const [page, setPage] = useState(1);
-  const savedPostsQuery = useSavedFeed(page, 10);
+  const savedPostsQuery = useSavedFeed(page, 5);
   const posts = savedPostsQuery.data?.data ?? [];
 
   const totalPages = savedPostsQuery.data?.totalPages ?? 1;
 
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
 
-  const visiblePosts = posts.filter((p) => !removedIds.has(p.id));
+  const visiblePosts = posts.filter((p) => !removedIds.has(p.post.id));
 
   const pageItems = useMemo(() => {
     const tp = totalPages;

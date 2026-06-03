@@ -10,8 +10,8 @@ import { AdminPostFilters, type AdminPostFilterState } from "@/components/admin/
 import { AdminPostTable } from "@/components/admin/posts/AdminPostTable";
 import { ADMIN_POSTS_TEXT } from "@/components/admin/posts/admin-posts.constants";
 import { Button } from "@/components/ui/button";
-import { useAdminPost, useUpdateAdminPostStatus } from "@/hooks/useAdminPost";
-import { useAdminPosts } from "@/hooks/useAdminPosts";
+import { useAdminPost, useUpdateAdminPostStatus } from "@/hooks/admin/useAdminPost";
+import { useAdminPosts } from "@/hooks/admin/useAdminPosts";
 
 const PAGE_SIZE = 20;
 
