@@ -6,16 +6,7 @@ import {
   NotFoundError,
 } from "@/lib/services/shared/app-error";
 
-type RouteContext = {
-  params: Promise<{
-    id: string;
-  }>;
-};
-
-export async function POST(
-  _request: Request,
-  { params }: RouteContext
-) {
+export async function POST(_request: Request, { params }: any) {
   try {
     const { id } = await params;
 

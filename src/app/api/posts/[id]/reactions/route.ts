@@ -6,16 +6,12 @@ import { authService } from "@/lib/services/index";
 import { AppError, NotFoundError } from "@/lib/services/shared/app-error";
 import { reactionSchema } from "@/lib/validations/reaction.schema";
 
-type RouteContext = {
-  params?: Promise<{ id?: string }> | { id?: string };
-};
-
 async function resolveId(
   request: Request,
-  context: RouteContext,
+  context: any,
   segment: "posts" | "comments"
 ) {
-  const params = await context.params;
+  const params = await context?.params;
   const id = params?.id;
 
   if (id) return id;
@@ -53,10 +49,7 @@ async function getRequiredViewer() {
   return authService.getCurrentUserFromSupabaseUser(response.data.user);
 }
 
-export async function GET(
-  request: Request,
-  context: RouteContext
-) {
+export async function GET(request: Request, context: any) {
   try {
     const id = await resolveId(request, context, "posts");
 
@@ -86,10 +79,7 @@ export async function GET(
   }
 }
 
-export async function POST(
-  request: Request,
-  context: RouteContext
-) {
+export async function POST(request: Request, context: any) {
   try {
     const id = await resolveId(request, context, "posts");
 
@@ -131,10 +121,7 @@ export async function POST(
   }
 }
 
-export async function DELETE(
-  request: Request,
-  context: RouteContext
-) {
+export async function DELETE(request: Request, context: any) {
   try {
     const id = await resolveId(request, context, "posts");
 
