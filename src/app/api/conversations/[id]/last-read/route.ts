@@ -5,7 +5,7 @@ import { getCurrentUser, getRouteParamId } from "@/lib/api/route-utils";
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const conversationId = await getRouteParamId(params as any);

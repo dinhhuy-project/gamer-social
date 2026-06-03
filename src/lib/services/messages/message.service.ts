@@ -150,7 +150,7 @@ export async function deleteMessage(actorId: string | null | undefined, messageI
 
   if (message.sender_id !== actor) throw new ForbiddenError("User is not the sender");
 
-  await prisma.messages.update({ where: { id: messageId }, data: { is_deleted: true, updated_at: new Date() } });
+  await prisma.messages.update({ where: { id: messageId }, data: { is_deleted: true } });
 
   return { success: true };
 }

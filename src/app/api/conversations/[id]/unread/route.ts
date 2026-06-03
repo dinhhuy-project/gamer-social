@@ -3,7 +3,7 @@ import { unreadService } from "@/lib/services/unread.service";
 import { AppError } from "@/lib/services/shared/app-error";
 import { getCurrentUser, getRouteParamId } from "@/lib/api/route-utils";
 
-export async function GET(_request: Request, { params }: { params: { id: string } }) {
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const conversationId = await getRouteParamId(params as any);
     const current = await getCurrentUser();

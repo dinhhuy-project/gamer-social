@@ -3,7 +3,7 @@ import { notificationService } from "@/lib/services/notifications/notification.s
 import { AppError } from "@/lib/services/shared/app-error";
 import { getCurrentUser, getRouteParamId } from "@/lib/api/route-utils";
 
-export async function POST(_request: Request, { params }: { params: { id: string } }) {
+export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const notificationId = await getRouteParamId(params as any);
     const current = await getCurrentUser();

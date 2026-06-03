@@ -7,10 +7,11 @@ import { AppError, NotFoundError } from "@/lib/services/shared/app-error";
 
 export async function GET(
   _request: Request,
-  { params }: { params: { username: string } }
+  { params }: { params: Promise<{ username: string }> }
 ) {
   try {
-    let username = params?.username;
+    const resolved = await params;
+    let username = resolved?.username;
     if (!username) {
       const url = new URL(_request.url);
       const segs = url.pathname.split("/").filter(Boolean);
@@ -44,10 +45,11 @@ export async function GET(
 
 export async function POST(
   _request: Request,
-  { params }: { params: { username: string } }
+  { params }: { params: Promise<{ username: string }> }
 ) {
   try {
-    let username = params?.username;
+    const resolved = await params;
+    let username = resolved?.username;
     if (!username) {
       const url = new URL(_request.url);
       const segs = url.pathname.split("/").filter(Boolean);
@@ -82,10 +84,11 @@ export async function POST(
 
 export async function DELETE(
   _request: Request,
-  { params }: { params: { username: string } }
+  { params }: { params: Promise<{ username: string }> }
 ) {
   try {
-    let username = params?.username;
+    const resolved = await params;
+    let username = resolved?.username;
     if (!username) {
       const url = new URL(_request.url);
       const segs = url.pathname.split("/").filter(Boolean);

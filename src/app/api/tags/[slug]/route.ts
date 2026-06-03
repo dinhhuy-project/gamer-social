@@ -7,10 +7,10 @@ import { updateTagSchema } from "@/lib/validations/tag.schema";
 
 export async function GET(
   _request: Request,
-  { params }: { params: { slug: string } }
+  { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
-    const slug = params.slug;
+    const { slug } = await params;
     if (!slug) return NextResponse.json({ error: "Missing slug" }, { status: 400 });
 
     const tag = await tagService.getTagBySlug(slug);
@@ -25,10 +25,10 @@ export async function GET(
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { slug: string } }
+  { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
-    const slug = params.slug;
+    const { slug } = await params;
     if (!slug) return NextResponse.json({ error: "Missing slug" }, { status: 400 });
 
     const supabase = await createClient();
@@ -56,10 +56,10 @@ export async function PATCH(
 
 export async function DELETE(
   _request: Request,
-  { params }: { params: { slug: string } }
+  { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
-    const slug = params.slug;
+    const { slug } = await params;
     if (!slug) return NextResponse.json({ error: "Missing slug" }, { status: 400 });
 
     const supabase = await createClient();

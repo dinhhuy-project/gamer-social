@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { authService } from "@/lib/services";
 
 export async function getRouteParamId(
-  params: Promise<{ id: string }>
+  params: { id: string } | Promise<{ id: string }>
 ): Promise<string> {
   const resolved = await params;
 
