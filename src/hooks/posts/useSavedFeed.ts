@@ -1,29 +1,20 @@
 "use client";
 
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api/api-client";
 import type { PaginatedResponse, SavedItemDTO } from "@/types/api.types";
 
-async function fetchSavedFeed(page: number, perPage: number) {
+async function fetchSavedFeed(page: number, perPage: number, signal?: AbortSignal) {
   const params = new URLSearchParams();
   params.set("page", String(page));
   params.set("perPage", String(perPage));
-
-  const res = await fetch(`/api/me/saved?${params.toString()}`, { credentials: "same-origin" });
-
-  if (res.status === 401) throw new Error("Unauthorized");
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    const msg = payload?.error || (await res.text());
-    throw new Error(msg || "Failed to fetch saved feed");
-  }
-
-  return (await res.json()) as PaginatedResponse<SavedItemDTO>;
+  return apiClient<PaginatedResponse<SavedItemDTO>>(`/api/me/saved?${params.toString()}`, { credentials: "same-origin" }, signal);
 }
 
 export function useSavedFeed(page = 1, perPage = 20) {
   return useQuery<PaginatedResponse<SavedItemDTO>, Error>({
     queryKey: ["me", "saved", page],
-    queryFn: () => fetchSavedFeed(page, perPage),
+    queryFn: ({ signal }) => fetchSavedFeed(page, perPage, signal),
     placeholderData: keepPreviousData,
   });
 }

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { mapNotificationRecordToDto } from "@/lib/services/notifications/notification.mapper";
 import { notificationsInsertOpts, NOTIFICATIONS_CHANNEL } from "@/lib/realtime/channels/notification-channel";
+import { realtimeManager } from "@/lib/realtime/realtime-manager";
 
 export function subscribeToNotifications(
   supabase: SupabaseClient,
@@ -31,9 +32,20 @@ export function subscribeToNotifications(
       // console.log("[realtime] subscribeToNotifications status:", status, { channel: channelName, opts, userId });
     });
 
+  try {
+    realtimeManager.register(supabase, channel);
+  } catch (err) {
+    // ignore
+  }
+
   return () => {
     try {
       supabase.removeChannel(channel);
+      try {
+        realtimeManager.unregister(supabase, channel);
+      } catch {
+        // ignore
+      }
     } catch (err) { }
   };
 }

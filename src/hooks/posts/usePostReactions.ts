@@ -10,7 +10,7 @@ import {
 export function usePostReactions(postId: string) {
   return useQuery<ReactionSummaryDTO, Error>({
     queryKey: reactionSummaryKey("post", postId),
-    queryFn: () => fetchReactionSummary("post", postId),
+    queryFn: ({ signal }) => fetchReactionSummary("post", postId, signal),
     enabled: Boolean(postId),
   });
 }

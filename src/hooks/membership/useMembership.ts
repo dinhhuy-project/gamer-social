@@ -2,6 +2,7 @@
 
 import React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api/api-client";
 import type { MembershipStatus } from "@/types/api.types";
 
 const MEMBERSHIP_STATUS_QUERY_KEY = ["membership", "status"] as const;
@@ -22,71 +23,32 @@ type ConfirmInput = {
   paymentRef: string;
 };
 
-async function fetchMembershipStatus(): Promise<MembershipStatus> {
-  const res = await fetch("/api/membership/status", {
-    method: "GET",
-    credentials: "same-origin",
-  });
-
-  if (res.status === 401) {
-    throw new Error("Unauthorized");
-  }
-
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    const msg = payload?.error || (await res.text());
-    throw new Error(msg || "Failed to load membership status");
-  }
-
-  return (await res.json()) as MembershipStatus;
+async function fetchMembershipStatus(signal?: AbortSignal): Promise<MembershipStatus> {
+  return apiClient<MembershipStatus>("/api/membership/status", { method: "GET", credentials: "same-origin" }, signal);
 }
 
 async function createMembershipCheckoutSession(input: CheckoutInput): Promise<MembershipCheckoutSession> {
-  const res = await fetch("/api/membership/checkout", {
+  return apiClient<MembershipCheckoutSession>("/api/membership/checkout", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
     body: JSON.stringify(input),
   });
-
-  if (res.status === 401) {
-    throw new Error("Unauthorized");
-  }
-
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    const msg = payload?.error || (await res.text());
-    throw new Error(msg || "Failed to create membership checkout session");
-  }
-
-  return (await res.json()) as MembershipCheckoutSession;
 }
 
 async function confirmMembershipPayment(input: ConfirmInput): Promise<MembershipStatus> {
-  const res = await fetch("/api/membership/confirm", {
+  return apiClient<MembershipStatus>("/api/membership/confirm", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
     body: JSON.stringify(input),
   });
-
-  if (res.status === 401) {
-    throw new Error("Unauthorized");
-  }
-
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    const msg = payload?.error || (await res.text());
-    throw new Error(msg || "Failed to confirm membership payment");
-  }
-
-  return (await res.json()) as MembershipStatus;
 }
 
 export function useMembershipStatus() {
   return useQuery<MembershipStatus, Error>({
     queryKey: MEMBERSHIP_STATUS_QUERY_KEY,
-    queryFn: fetchMembershipStatus,
+    queryFn: ({ signal }) => fetchMembershipStatus(signal),
     staleTime: 1000 * 60 * 2,
     refetchOnWindowFocus: false,
   });

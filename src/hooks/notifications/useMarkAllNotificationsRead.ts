@@ -2,12 +2,10 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { QUERY_KEYS } from "@/lib/queryKeys";
+import { apiClient } from "@/lib/api/api-client";
 
 async function postMarkAllRead() {
-  const res = await fetch(`/api/notifications/read-all`, { method: "POST", credentials: "same-origin" });
-  if (res.status === 401) throw new Error("Unauthorized");
-  if (!res.ok) throw new Error("Failed to mark all notifications read");
-  return res.json();
+  return apiClient(`/api/notifications/read-all`, { method: "POST", credentials: "same-origin" });
 }
 
 export function useMarkAllNotificationsRead(userId?: string) {

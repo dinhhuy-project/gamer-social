@@ -1,6 +1,7 @@
 "use client";
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api/api-client";
 
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
 
@@ -30,23 +31,14 @@ function buildParams(filters: AdminPostsFilters) {
   return params;
 }
 
-async function fetchAdminPosts(filters: AdminPostsFilters) {
-  const res = await fetch(`/api/admin/posts?${buildParams(filters).toString()}`, {
-    credentials: "same-origin",
-  });
-
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    throw new Error(payload?.error ?? "Failed to fetch admin posts");
-  }
-
-  return (await res.json()) as AdminPostsResponse;
+async function fetchAdminPosts(filters: AdminPostsFilters, signal?: AbortSignal) {
+  return apiClient<AdminPostsResponse>(`/api/admin/posts?${buildParams(filters).toString()}`, { credentials: "same-origin" }, signal);
 }
 
 export function useAdminPosts(filters: AdminPostsFilters) {
   return useQuery<AdminPostsResponse, Error>({
     queryKey: QUERY_KEYS.adminPosts(filters),
-    queryFn: () => fetchAdminPosts(filters),
+    queryFn: ({ signal }) => fetchAdminPosts(filters, signal),
     placeholderData: keepPreviousData,
   });
 }

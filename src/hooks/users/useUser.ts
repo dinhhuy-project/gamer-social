@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import type { PublicUser } from "@/types/api.types";
+import { apiClient } from "@/lib/api/api-client";
 
 export type UserProfile = PublicUser & {
   bio: string | null;
@@ -13,19 +14,14 @@ export type UserProfile = PublicUser & {
   sharedPostsCount: number;
 };
 
-async function fetchUser(username: string) {
-  const res = await fetch(`/api/users/${encodeURIComponent(username)}`, { credentials: "same-origin" });
-  if (res.status === 401) throw new Error("Unauthorized");
-  if (res.status === 404) throw new Error("Not found");
-  if (!res.ok) throw new Error("Failed to fetch user");
-  const data = await res.json();
-  return data as UserProfile;
+async function fetchUser(username: string, signal?: AbortSignal) {
+  return apiClient<UserProfile>(`/api/users/${encodeURIComponent(username)}`, { credentials: "same-origin" }, signal);
 }
 
 export function useUser(username?: string) {
   return useQuery<UserProfile, Error>({
     queryKey: ["users", username ?? ""],
-    queryFn: () => fetchUser(username!),
+    queryFn: ({ signal }) => fetchUser(username!, signal),
     enabled: !!username,
   });
 }

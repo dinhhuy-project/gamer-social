@@ -1,20 +1,23 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api/api-client";
 import type { CurrentUser } from "@/types/api.types";
 
-async function fetchCurrentUser(): Promise<CurrentUser | null> {
-  const res = await fetch("/api/me", { credentials: "same-origin" });
-  if (res.status === 401) return null;
-  if (!res.ok) throw new Error("Failed to fetch current user");
-  const data = await res.json();
-  return data as CurrentUser;
+async function fetchCurrentUser(signal?: AbortSignal): Promise<CurrentUser | null> {
+  try {
+    const data = await apiClient<CurrentUser | null>("/api/me", { credentials: "same-origin" }, signal);
+    return data;
+  } catch (err: any) {
+    if (err?.status === 401) return null;
+    throw err;
+  }
 }
 
 export function useCurrentUser() {
   return useQuery<CurrentUser | null, Error>({
     queryKey: ["me"],
-    queryFn: fetchCurrentUser,
+    queryFn: ({ signal }) => fetchCurrentUser(signal),
     staleTime: 1000 * 60 * 2,
     refetchOnWindowFocus: false,
   });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api/api-client";
 
 import type { PublicUser } from "@/types/api.types";
 
@@ -8,57 +9,16 @@ async function adminUpdateUserApi(
   id: string,
   input: Partial<Record<string, unknown>>
 ) {
-  const res = await fetch(
-    `/api/admin/users/${encodeURIComponent(id)}`,
-    {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      credentials: "same-origin",
-      body: JSON.stringify(input),
-    }
-  );
-
-  if (res.status === 401) {
-    throw new Error("Unauthorized");
-  }
-
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-
-    const msg =
-      payload?.error || (await res.text());
-
-    throw new Error(msg || "Failed to update user");
-  }
-
-  return (await res.json()) as PublicUser;
+  return apiClient<PublicUser>(`/api/admin/users/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify(input),
+  });
 }
 
 async function adminDeleteUserApi(id: string) {
-  const res = await fetch(
-    `/api/admin/users/${encodeURIComponent(id)}`,
-    {
-      method: "DELETE",
-      credentials: "same-origin",
-    }
-  );
-
-  if (res.status === 401) {
-    throw new Error("Unauthorized");
-  }
-
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-
-    const msg =
-      payload?.error || (await res.text());
-
-    throw new Error(msg || "Failed to delete user");
-  }
-
-  return res.json();
+  return apiClient<unknown>(`/api/admin/users/${encodeURIComponent(id)}`, { method: "DELETE", credentials: "same-origin" });
 }
 
 export function useAdminUpdateUser() {

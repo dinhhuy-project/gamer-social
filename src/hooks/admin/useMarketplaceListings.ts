@@ -1,6 +1,7 @@
 "use client";
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api/api-client";
 
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
 
@@ -14,7 +15,7 @@ export type MarketplaceListingFilters = {
   limit?: number;
 };
 
-async function fetchMarketplaceListings(filters: MarketplaceListingFilters) {
+async function fetchMarketplaceListings(filters: MarketplaceListingFilters, signal?: AbortSignal) {
   const params = new URLSearchParams();
 
   params.set("page", String(filters.page ?? 1));
@@ -25,22 +26,13 @@ async function fetchMarketplaceListings(filters: MarketplaceListingFilters) {
     params.set("listing_status", filters.listingStatus);
   }
 
-  const res = await fetch(`/api/admin/listings?${params.toString()}`, {
-    credentials: "same-origin",
-  });
-
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    throw new Error(payload?.error ?? "Failed to fetch marketplace listings");
-  }
-
-  return (await res.json()) as AdminPostsResponse;
+  return apiClient<AdminPostsResponse>(`/api/admin/listings?${params.toString()}`, { credentials: "same-origin" }, signal);
 }
 
 export function useMarketplaceListings(filters: MarketplaceListingFilters) {
   return useQuery<AdminPostsResponse, Error>({
     queryKey: QUERY_KEYS.adminListings(filters),
-    queryFn: () => fetchMarketplaceListings(filters),
+    queryFn: ({ signal }) => fetchMarketplaceListings(filters, signal),
     placeholderData: keepPreviousData,
   });
 }

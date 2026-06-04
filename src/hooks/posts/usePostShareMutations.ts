@@ -1,42 +1,20 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api/api-client";
 import type { PostShareDTO } from "@/types/api.types";
 
 async function sharePostApi(postId: string, note?: string) {
-  const res = await fetch(`/api/posts/${encodeURIComponent(postId)}/share`, {
+  return apiClient<PostShareDTO>(`/api/posts/${encodeURIComponent(postId)}/share`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
     body: JSON.stringify({ note }),
   });
-
-  if (res.status === 401) throw new Error("Unauthorized");
-  if (res.status === 404) throw new Error("Not found");
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    const msg = payload?.error || (await res.text());
-    throw new Error(msg || "Failed to share post");
-  }
-
-  return (await res.json()) as PostShareDTO;
 }
 
 async function unsharePostApi(postId: string) {
-  const res = await fetch(`/api/posts/${encodeURIComponent(postId)}/share`, {
-    method: "DELETE",
-    credentials: "same-origin",
-  });
-
-  if (res.status === 401) throw new Error("Unauthorized");
-  if (res.status === 404) throw new Error("Not found");
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    const msg = payload?.error || (await res.text());
-    throw new Error(msg || "Failed to unshare post");
-  }
-
-  return (await res.json()) as { removed: boolean };
+  return apiClient<{ removed: boolean }>(`/api/posts/${encodeURIComponent(postId)}/share`, { method: "DELETE", credentials: "same-origin" });
 }
 
 export function usePostShareMutations() {

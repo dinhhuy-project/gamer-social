@@ -1,44 +1,29 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api/api-client";
 
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
 
 import type { AdminPostDetail, PostStatus } from "@/types/api.types";
 
-async function fetchAdminPost(id: string) {
-  const res = await fetch(`/api/admin/posts/${encodeURIComponent(id)}`, {
-    credentials: "same-origin",
-  });
-
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    throw new Error(payload?.error ?? "Failed to fetch post detail");
-  }
-
-  return (await res.json()) as AdminPostDetail;
+async function fetchAdminPost(id: string, signal?: AbortSignal) {
+  return apiClient<AdminPostDetail>(`/api/admin/posts/${encodeURIComponent(id)}`, { credentials: "same-origin" }, signal);
 }
 
 async function patchAdminPostStatus(id: string, status: PostStatus) {
-  const res = await fetch(`/api/admin/posts/${encodeURIComponent(id)}`, {
+  return apiClient<AdminPostDetail>(`/api/admin/posts/${encodeURIComponent(id)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
     body: JSON.stringify({ status }),
   });
-
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    throw new Error(payload?.error ?? "Failed to update post status");
-  }
-
-  return (await res.json()) as AdminPostDetail;
 }
 
 export function useAdminPost(id: string | null) {
   return useQuery<AdminPostDetail, Error>({
     queryKey: QUERY_KEYS.adminPost(id ?? ""),
-    queryFn: () => fetchAdminPost(id ?? ""),
+    queryFn: ({ signal }) => fetchAdminPost(id ?? "", signal),
     enabled: Boolean(id),
   });
 }

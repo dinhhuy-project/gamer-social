@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MessageDto } from "@/types/message.types";
 import { mapMessageRecordToDto } from "@/lib/services/messages/message.mapper";
 import { messagesInsertOpts, MESSAGES_ALL_CHANNEL, MESSAGES_CHANNEL } from "@/lib/realtime/channels/conversation-channel";
+import { realtimeManager } from "@/lib/realtime/realtime-manager";
 
 export function subscribeToMessages(
   supabase: SupabaseClient,
@@ -32,9 +33,21 @@ export function subscribeToMessages(
       // console.log("[realtime] subscribeToMessages status", { channel: channelName, opts });
     });
 
+  // register channel in global manager so it can be cleaned up on route changes
+  try {
+    realtimeManager.register(supabase, channel);
+  } catch {
+    // ignore
+  }
+
   return () => {
     try {
       supabase.removeChannel(channel);
+      try {
+        realtimeManager.unregister(supabase, channel);
+      } catch {
+        // ignore
+      }
     } catch {
       // ignore
     }
@@ -70,9 +83,20 @@ export function subscribeToConversationMessages(
       // console.log("[realtime] subscribeToConversationMessages status", { channel: channelName, opts, conversationId });
     });
 
+  try {
+    realtimeManager.register(supabase, channel);
+  } catch {
+    // ignore
+  }
+
   return () => {
     try {
       supabase.removeChannel(channel);
+      try {
+        realtimeManager.unregister(supabase, channel);
+      } catch {
+        // ignore
+      }
     } catch {
       // ignore
     }

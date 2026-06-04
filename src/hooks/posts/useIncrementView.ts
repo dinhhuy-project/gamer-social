@@ -1,27 +1,15 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api/api-client";
 
 export function useIncrementPostView() {
   const queryClient = useQueryClient();
 
   return useMutation<number, Error, string>({
     mutationFn: async (postId: string) => {
-      const res = await fetch(`/api/posts/${encodeURIComponent(postId)}/view`, {
-        method: "POST",
-        credentials: "same-origin",
-      });
-      if (!res.ok) {
-        let payload: any = null;
-        try {
-          payload = await res.json();
-        } catch {
-          /* ignore */
-        }
-        throw new Error(payload?.error ?? "Failed to increment view");
-      }
-      const body = await res.json();
-      return (body?.viewCount as number) ?? null as any;
+      const body = await apiClient<{ viewCount?: number }>(`/api/posts/${encodeURIComponent(postId)}/view`, { method: "POST", credentials: "same-origin" });
+      return (body?.viewCount as number) ?? (null as any);
     },
     onSuccess: (viewCount, postId) => {
       try {

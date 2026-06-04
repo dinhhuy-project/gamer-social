@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api/api-client";
 
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
 
@@ -11,22 +12,12 @@ async function reviewListingApi(input: {
   action: "approve" | "reject";
   rejectReason?: string;
 }) {
-  const res = await fetch(`/api/admin/listings/${encodeURIComponent(input.id)}/review`, {
+  return apiClient<AdminPostDetail>(`/api/admin/listings/${encodeURIComponent(input.id)}/review`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
-    body: JSON.stringify({
-      action: input.action,
-      reject_reason: input.rejectReason,
-    }),
+    body: JSON.stringify({ action: input.action, reject_reason: input.rejectReason }),
   });
-
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    throw new Error(payload?.error ?? "Failed to review listing");
-  }
-
-  return (await res.json()) as AdminPostDetail;
 }
 
 export function useReviewListing() {

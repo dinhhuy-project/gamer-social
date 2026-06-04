@@ -1,125 +1,57 @@
 "use client";
 
 import { useQuery, keepPreviousData, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api/api-client";
 import type { PaginatedResponse, CommentDTO } from "@/types/api.types";
 
 async function fetchComments(
   postId: string,
   page = 1,
   perPage = 20,
-  repliesPerRoot = 3
+  repliesPerRoot = 3,
+  signal?: AbortSignal
 ) {
   const params = new URLSearchParams();
   params.set("page", String(page));
   params.set("perPage", String(perPage));
   params.set("repliesPerRoot", String(repliesPerRoot));
-
-  const res = await fetch(`/api/posts/${encodeURIComponent(postId)}/comments?${params.toString()}`, {
-    credentials: "same-origin",
-  });
-
-  if (res.status === 401) throw new Error("Unauthorized");
-  if (res.status === 404) throw new Error("Not found");
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    const msg = payload?.error || (await res.text());
-    throw new Error(msg || "Failed to fetch comments");
-  }
-
-  return (await res.json()) as PaginatedResponse<CommentDTO>;
+  return apiClient<PaginatedResponse<CommentDTO>>(`/api/posts/${encodeURIComponent(postId)}/comments?${params.toString()}`, { credentials: "same-origin" }, signal);
 }
 
-async function fetchCommentTree(postId: string) {
-  const res = await fetch(`/api/posts/${encodeURIComponent(postId)}/comments?tree=true`, {
-    credentials: "same-origin",
-  });
-
-  if (res.status === 401) throw new Error("Unauthorized");
-  if (res.status === 404) throw new Error("Not found");
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    const msg = payload?.error || (await res.text());
-    throw new Error(msg || "Failed to fetch comment tree");
-  }
-
-  return (await res.json()) as CommentDTO[];
+async function fetchCommentTree(postId: string, signal?: AbortSignal) {
+  return apiClient<CommentDTO[]>(`/api/posts/${encodeURIComponent(postId)}/comments?tree=true`, { credentials: "same-origin" }, signal);
 }
 
-async function fetchComment(commentId: string) {
-  const res = await fetch(`/api/comments/${encodeURIComponent(commentId)}`, {
-    credentials: "same-origin",
-  });
-
-  if (res.status === 401) throw new Error("Unauthorized");
-  if (res.status === 404) throw new Error("Not found");
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    const msg = payload?.error || (await res.text());
-    throw new Error(msg || "Failed to fetch comment");
-  }
-
-  return (await res.json()) as CommentDTO;
+async function fetchComment(commentId: string, signal?: AbortSignal) {
+  return apiClient<CommentDTO>(`/api/comments/${encodeURIComponent(commentId)}`, { credentials: "same-origin" }, signal);
 }
 
 async function createComment(postId: string, input: { content: string; parentId?: string }) {
-  const res = await fetch(`/api/posts/${encodeURIComponent(postId)}/comments`, {
+  return apiClient<CommentDTO>(`/api/posts/${encodeURIComponent(postId)}/comments`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
     body: JSON.stringify(input),
   });
-
-  if (res.status === 401) throw new Error("Unauthorized");
-  if (res.status === 404) throw new Error("Not found");
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    const msg = payload?.error || (await res.text());
-    throw new Error(msg || "Failed to create comment");
-  }
-
-  return (await res.json()) as CommentDTO;
 }
 
 async function updateComment(commentId: string, input: { content: string }) {
-  const res = await fetch(`/api/comments/${encodeURIComponent(commentId)}`, {
+  return apiClient<CommentDTO>(`/api/comments/${encodeURIComponent(commentId)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
     body: JSON.stringify(input),
   });
-
-  if (res.status === 401) throw new Error("Unauthorized");
-  if (res.status === 404) throw new Error("Not found");
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    const msg = payload?.error || (await res.text());
-    throw new Error(msg || "Failed to update comment");
-  }
-
-  return (await res.json()) as CommentDTO;
 }
 
 async function deleteComment(commentId: string) {
-  const res = await fetch(`/api/comments/${encodeURIComponent(commentId)}`, {
-    method: "DELETE",
-    credentials: "same-origin",
-  });
-
-  if (res.status === 401) throw new Error("Unauthorized");
-  if (res.status === 404) throw new Error("Not found");
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    const msg = payload?.error || (await res.text());
-    throw new Error(msg || "Failed to delete comment");
-  }
-
-  return (await res.json()) as CommentDTO;
+  return apiClient<CommentDTO>(`/api/comments/${encodeURIComponent(commentId)}`, { method: "DELETE", credentials: "same-origin" });
 }
 
 export function useComments(postId: string, page = 1, perPage = 20, repliesPerRoot = 3) {
   return useQuery<PaginatedResponse<CommentDTO>, Error>({
     queryKey: ["comments", postId, page, perPage, repliesPerRoot],
-    queryFn: () => fetchComments(postId, page, perPage, repliesPerRoot),
+    queryFn: ({ signal }) => fetchComments(postId, page, perPage, repliesPerRoot, signal),
     placeholderData: keepPreviousData,
     enabled: Boolean(postId),
   });
@@ -128,7 +60,7 @@ export function useComments(postId: string, page = 1, perPage = 20, repliesPerRo
 export function useCommentTree(postId: string) {
   return useQuery<CommentDTO[], Error>({
     queryKey: ["commentTree", postId],
-    queryFn: () => fetchCommentTree(postId),
+    queryFn: ({ signal }) => fetchCommentTree(postId, signal),
     enabled: Boolean(postId),
   });
 }
@@ -136,7 +68,7 @@ export function useCommentTree(postId: string) {
 export function useComment(commentId: string, initialData?: CommentDTO) {
   return useQuery<CommentDTO, Error>({
     queryKey: ["comment", commentId],
-    queryFn: () => fetchComment(commentId),
+    queryFn: ({ signal }) => fetchComment(commentId, signal),
     enabled: Boolean(commentId),
     initialData,
   });

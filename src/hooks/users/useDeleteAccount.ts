@@ -4,31 +4,10 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api/api-client";
 
 async function deleteAccountApi() {
-  const res = await fetch("/api/users/me", {
-    method: "DELETE",
-    credentials: "same-origin",
-  });
-
-  if (res.status === 401) {
-    throw new Error("Unauthorized");
-  }
-
-  if (!res.ok) {
-    const payload = await res
-      .json()
-      .catch(() => null);
-
-    const msg =
-      payload?.error || (await res.text());
-
-    throw new Error(
-      msg || "Failed to delete account"
-    );
-  }
-
-  return res.json();
+  return apiClient<unknown>("/api/users/me", { method: "DELETE", credentials: "same-origin" });
 }
 
 export function useDeleteAccount() {

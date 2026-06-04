@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { apiClient } from "@/lib/api/api-client";
 
 export function useAuthActions() {
   const [isLoading, setIsLoading] = useState(false);
@@ -52,11 +53,7 @@ export function useAuthActions() {
       return;
     }
 
-    const profile = await fetch("/api/me", {
-      credentials: "same-origin",
-    })
-      .then((res) => (res.ok ? res.json() : null))
-      .catch(() => null);
+    const profile = await apiClient<any>("/api/me", { credentials: "same-origin" }).catch(() => null);
 
     router.push(profile?.role === "admin" ? "/admin/users" : "/feed");
     router.refresh();

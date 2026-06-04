@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api/api-client";
 import type { ConversationDto } from "@/types/conversation.types";
 
 async function parseResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
@@ -24,14 +25,12 @@ async function parseResponse<T>(response: Response, fallbackMessage: string): Pr
 }
 
 async function postAction(path: string, body: Record<string, any>) {
-  const res = await fetch(path, {
+  return apiClient<ConversationDto>(path, {
     method: "POST",
     credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-
-  return parseResponse<ConversationDto>(res, "Failed to perform action");
 }
 
 export function useStartTrade() {
@@ -90,10 +89,7 @@ export function useCancelTrade() {
 export function useTrade(conversationId?: string) {
   return useQuery<ConversationDto, Error>({
     queryKey: ["conversation", conversationId ?? ""],
-    queryFn: async () => {
-      const res = await fetch(`/api/conversations/${encodeURIComponent(conversationId ?? "")}`, { credentials: "same-origin" });
-      return parseResponse<ConversationDto>(res, "Failed to load trade");
-    },
+    queryFn: ({ signal }) => apiClient<ConversationDto>(`/api/conversations/${encodeURIComponent(conversationId ?? "")}`, { credentials: "same-origin" }, signal),
     enabled: Boolean(conversationId),
   });
 }

@@ -4,6 +4,7 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api/api-client";
 
 import type {
   CurrentUser,
@@ -19,39 +20,12 @@ interface UpdateProfileInput {
 async function updateProfileApi(
   input: UpdateProfileInput
 ) {
-  const res = await fetch(
-    "/api/users/me",
-    {
-      method: "PUT",
-
-      headers: {
-        "Content-Type": "application/json",
-      },
-
-      credentials: "same-origin",
-
-      body: JSON.stringify(input),
-    }
-  );
-
-  if (res.status === 401) {
-    throw new Error("Unauthorized");
-  }
-
-  if (!res.ok) {
-    const payload = await res
-      .json()
-      .catch(() => null);
-
-    const msg =
-      payload?.error || (await res.text());
-
-    throw new Error(
-      msg || "Failed to update profile"
-    );
-  }
-
-  return (await res.json()) as CurrentUser;
+  return apiClient<CurrentUser>("/api/users/me", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify(input),
+  });
 }
 
 export function useUpdateProfile() {

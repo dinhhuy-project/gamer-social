@@ -13,6 +13,7 @@ import {
   Shield,
   Sparkles,
   User2,
+  Trash2,
 } from "lucide-react";
 
 import { useTheme } from "next-themes";
@@ -23,6 +24,8 @@ import {
   useMembershipCheckout,
   useMembershipStatus,
 } from "@/hooks/membership/useMembership";
+
+import { useDeleteAccount } from "@/hooks/users/useDeleteAccount";
 
 import {
   Card,
@@ -61,6 +64,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
+
 export default function SettingsPage() {
   const { data: user } = useCurrentUser();
 
@@ -89,6 +105,9 @@ export default function SettingsPage() {
   const membershipCheckout = useMembershipCheckout();
   const membershipConfirm = useConfirmMembershipPayment();
 
+  const [deleting, setDeleting] = useState(false);
+  const deleteAccount = useDeleteAccount();
+
   const [selectedTheme, setSelectedTheme] =
     useState<"light" | "dark" | "system">(
       "dark"
@@ -97,6 +116,18 @@ export default function SettingsPage() {
   function handleTabChange(value: string) {
     if (value === "profile" || value === "membership" || value === "notifications" || value === "security") {
       setActiveTab(value as "profile" | "membership" | "notifications" | "security");
+    }
+  }
+
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      await deleteAccount.mutateAsync();
+      toast.success("Đã xóa tài khoản");
+    } catch {
+      toast.error("Xóa tài khoản thất bại");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -920,11 +951,30 @@ export default function SettingsPage() {
                   Change Password
                 </Button>
 
-                <Button
-                  variant="destructive"
-                >
-                  Delete Account
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="ghost" size="sm" className="text-red-500 hover:bg-red-500/10">
+                      <Trash2 className="w-4 h-4" />
+                      Xóa tài khoản
+                    </Button>
+                  </AlertDialogTrigger>
+
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Xóa tài khoản</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Bạn có chắc chắn muốn xóa tài khoản này? Hành động sẽ không thể hoàn tác.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Hủy</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleDelete} disabled={deleting}>
+                        Xóa
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </CardContent>
             </Card>
           </TabsContent>

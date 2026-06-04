@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactionSummaryDTO, ReactionType } from "@/types/api.types";
+import { apiClient } from "@/lib/api/api-client";
 
 export type ReactionTargetType = "post" | "comment";
 export type ReactionAction = "added" | "updated" | "removed";
@@ -25,37 +26,8 @@ const REACTION_TYPES: ReactionType[] = [
   "angry",
 ];
 
-function getErrorMessage(response: Response, fallback: string) {
-  if (response.status === 401) {
-    return "Unauthorized";
-  }
-
-  if (response.status === 404) {
-    return "Not found";
-  }
-
-  return response.text().then((text) => {
-    if (!text) {
-      return fallback;
-    }
-
-    try {
-      const payload = JSON.parse(text) as { error?: string };
-      return payload.error || fallback;
-    } catch {
-      return text || fallback;
-    }
-  });
-}
-
-async function requestJson<T>(input: string, init: RequestInit, fallback: string) {
-  const response = await fetch(input, init);
-
-  if (!response.ok) {
-    throw new Error(await getErrorMessage(response, fallback));
-  }
-
-  return (await response.json()) as T;
+async function requestJson<T>(input: string, init: RequestInit, _fallback: string) {
+  return apiClient<T>(input, init, (init as any)?.signal);
 }
 
 export function reactionPath(targetType: ReactionTargetType, targetId: string) {
@@ -75,11 +47,12 @@ export function reactionSummaryKey(targetType: ReactionTargetType, targetId: str
 
 export async function fetchReactionSummary(
   targetType: ReactionTargetType,
-  targetId: string
+  targetId: string,
+  signal?: AbortSignal
 ) {
   return requestJson<ReactionSummaryDTO>(
     reactionPath(targetType, targetId),
-    { credentials: "same-origin" },
+    { credentials: "same-origin", signal },
     "Failed to fetch reactions"
   );
 }

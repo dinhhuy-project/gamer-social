@@ -1,74 +1,29 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api/api-client";
 import type { ConversationDto } from "@/types/conversation.types";
 
-async function parseResponse<T>(response: Response, fallbackMessage: string): Promise<T> {
-  const text = await response.text();
-
-  if (!response.ok) {
-    let error = fallbackMessage;
-    try {
-      const payload = JSON.parse(text);
-      if (payload?.error) {
-        error = payload.error;
-      }
-    } catch {
-      // ignore invalid JSON
-    }
-    throw new Error(error);
-  }
-
-  if (!text) {
-    return {} as T;
-  }
-
-  return JSON.parse(text) as T;
+async function fetchConversation(conversationId: string, signal?: AbortSignal) {
+  return apiClient<ConversationDto>(`/api/conversations/${encodeURIComponent(conversationId)}`, { credentials: "same-origin" }, signal);
 }
 
-async function fetchConversation(conversationId: string) {
-  const res = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}`, {
-    credentials: "same-origin",
-  });
-
-  return parseResponse<ConversationDto>(res, "Failed to load conversation");
-}
-
-async function fetchConversationBetweenUsers(otherUserId: string) {
+async function fetchConversationBetweenUsers(otherUserId: string, signal?: AbortSignal) {
   const params = new URLSearchParams();
   params.set("otherUserId", otherUserId);
-
-  const res = await fetch(`/api/conversations/find?${params.toString()}`, {
-    credentials: "same-origin",
-  });
-
-  return parseResponse<ConversationDto>(res, "Failed to find conversation");
+  return apiClient<ConversationDto>(`/api/conversations/find?${params.toString()}`, { credentials: "same-origin" }, signal);
 }
 
-async function fetchParticipantStatus(conversationId: string) {
-  const res = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}/participant`, {
-    credentials: "same-origin",
-  });
-
-  return parseResponse<{ isParticipant: boolean }>(res, "Failed to check participant status");
+async function fetchParticipantStatus(conversationId: string, signal?: AbortSignal) {
+  return apiClient<{ isParticipant: boolean }>(`/api/conversations/${encodeURIComponent(conversationId)}/participant`, { credentials: "same-origin" }, signal);
 }
 
 async function postConversationAction(conversationId: string, action: string) {
-  const res = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}/${action}`, {
-    method: "POST",
-    credentials: "same-origin",
-  });
-
-  return parseResponse<ConversationDto>(res, `Failed to execute ${action} action`);
+  return apiClient<ConversationDto>(`/api/conversations/${encodeURIComponent(conversationId)}/${action}`, { method: "POST", credentials: "same-origin" });
 }
 
 async function patchLastReadAt(conversationId: string) {
-  const res = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}/last-read`, {
-    method: "PATCH",
-    credentials: "same-origin",
-  });
-
-  return parseResponse<{ lastReadAt: string | null }>(res, "Failed to update last read status");
+  return apiClient<{ lastReadAt: string | null }>(`/api/conversations/${encodeURIComponent(conversationId)}/last-read`, { method: "PATCH", credentials: "same-origin" });
 }
 
 export type CreateConversationPayload = {
@@ -79,12 +34,10 @@ export type CreateConversationPayload = {
 };
 
 export async function createConversation(payload: CreateConversationPayload) {
-  const res = await fetch(`/api/conversations`, {
+  return apiClient<ConversationDto>(`/api/conversations`, {
     method: "POST",
     credentials: "same-origin",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       participant_ids: payload.participantIds,
       tx_post_id: payload.txPostId,
@@ -92,14 +45,12 @@ export async function createConversation(payload: CreateConversationPayload) {
       tx_seller_id: payload.txSellerId,
     }),
   });
-
-  return parseResponse<ConversationDto>(res, "Failed to create conversation");
 }
 
 export function useConversation(conversationId?: string) {
   return useQuery<ConversationDto, Error>({
     queryKey: ["conversation", conversationId ?? ""],
-    queryFn: () => fetchConversation(conversationId!),
+    queryFn: ({ signal }) => fetchConversation(conversationId!, signal),
     enabled: Boolean(conversationId),
   });
 }
@@ -107,7 +58,7 @@ export function useConversation(conversationId?: string) {
 export function useFindConversation(otherUserId?: string) {
   return useQuery<ConversationDto, Error>({
     queryKey: ["conversation", "find", otherUserId ?? ""],
-    queryFn: () => fetchConversationBetweenUsers(otherUserId!),
+    queryFn: ({ signal }) => fetchConversationBetweenUsers(otherUserId!, signal),
     enabled: Boolean(otherUserId),
   });
 }
@@ -115,7 +66,7 @@ export function useFindConversation(otherUserId?: string) {
 export function useConversationParticipant(conversationId?: string) {
   return useQuery<{ isParticipant: boolean }, Error>({
     queryKey: ["conversation", conversationId ?? "", "participant"],
-    queryFn: () => fetchParticipantStatus(conversationId!),
+    queryFn: ({ signal }) => fetchParticipantStatus(conversationId!, signal),
     enabled: Boolean(conversationId),
   });
 }

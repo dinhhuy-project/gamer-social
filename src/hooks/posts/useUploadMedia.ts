@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api/api-client";
 
 type UploadResponse = { url: string };
 
@@ -8,18 +9,7 @@ async function uploadMediaApi(file: File) {
   const form = new FormData();
   form.append("file", file);
 
-  const res = await fetch("/api/upload", {
-    method: "POST",
-    body: form,
-  });
-
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    const msg = payload?.error || (await res.text());
-    throw new Error(msg || "Failed to upload media");
-  }
-
-  return (await res.json()) as UploadResponse;
+  return apiClient<UploadResponse>("/api/upload", { method: "POST", body: form });
 }
 
 export function useUploadMedia() {

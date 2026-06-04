@@ -1,40 +1,15 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api/api-client";
 import type { SavePostResultDTO } from "@/types/api.types";
 
 async function savePostApi(postId: string) {
-  const res = await fetch(`/api/posts/${encodeURIComponent(postId)}/save`, {
-    method: "POST",
-    credentials: "same-origin",
-  });
-
-  if (res.status === 401) throw new Error("Unauthorized");
-  if (res.status === 404) throw new Error("Not found");
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    const msg = payload?.error || (await res.text());
-    throw new Error(msg || "Failed to save post");
-  }
-
-  return (await res.json()) as SavePostResultDTO;
+  return apiClient<SavePostResultDTO>(`/api/posts/${encodeURIComponent(postId)}/save`, { method: "POST", credentials: "same-origin" });
 }
 
 async function unsavePostApi(postId: string) {
-  const res = await fetch(`/api/posts/${encodeURIComponent(postId)}/save`, {
-    method: "DELETE",
-    credentials: "same-origin",
-  });
-
-  if (res.status === 401) throw new Error("Unauthorized");
-  if (res.status === 404) throw new Error("Not found");
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    const msg = payload?.error || (await res.text());
-    throw new Error(msg || "Failed to unsave post");
-  }
-
-  return (await res.json()) as { removed: boolean };
+  return apiClient<{ removed: boolean }>(`/api/posts/${encodeURIComponent(postId)}/save`, { method: "DELETE", credentials: "same-origin" });
 }
 
 export function usePostBookmarkMutations() {

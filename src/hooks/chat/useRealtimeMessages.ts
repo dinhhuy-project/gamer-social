@@ -10,6 +10,7 @@ import type { MessageDto } from "@/types/message.types";
 import { QUERY_KEYS } from "@/lib/queryKeys";
 import { subscribeToConversationMessages } from "@/lib/realtime/services/message-realtime.service";
 import { ensureSupabaseClientSession } from "@/lib/realtime/services/session.service";
+import { apiClient } from "@/lib/api/api-client";
 
 function dedupeMessages(messages: MessageDto[]) {
   const seen = new Set<string>();
@@ -108,17 +109,12 @@ export function useRealtimeMessages(conversationId: string | undefined, page = 1
     const trimmed = content.trim();
     if (!trimmed && mediaUrls.length === 0) throw new Error("Message content or media is required");
 
-    const res = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}/messages`, {
+    const created = await apiClient<MessageDto>(`/api/conversations/${encodeURIComponent(conversationId)}/messages`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ content: trimmed || null, media_urls: mediaUrls }),
       credentials: "same-origin",
     });
-
-    if (res.status === 401) throw new Error("Unauthorized");
-    const payload = await res.json().catch(() => null);
-    if (!res.ok) throw new Error(payload?.error ?? "Failed to send message");
-    const created = payload as MessageDto;
 
     // update local cache
     const queries = queryClient.getQueriesData({ queryKey: QUERY_KEYS.messages.root(conversationId), exact: false });

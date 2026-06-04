@@ -1,98 +1,47 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api/api-client";
 import type { PostDTO } from "@/types/api.types";
 
 async function createPostApi(input: any) {
-  const res = await fetch(`/api/posts`, {
+  return apiClient<PostDTO>(`/api/posts`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
     body: JSON.stringify(input),
   });
-
-  if (res.status === 401) throw new Error("Unauthorized");
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    const msg = payload?.error || (await res.text());
-    throw new Error(msg || "Failed to create post");
-  }
-
-  return (await res.json()) as PostDTO;
 }
 
 async function updatePostApi(id: string, input: any) {
-  const res = await fetch(`/api/posts/${encodeURIComponent(id)}`, {
+  return apiClient<PostDTO>(`/api/posts/${encodeURIComponent(id)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
     body: JSON.stringify(input),
   });
-
-  if (res.status === 401) throw new Error("Unauthorized");
-  if (res.status === 404) throw new Error("Not found");
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    const msg = payload?.error || (await res.text());
-    throw new Error(msg || "Failed to update post");
-  }
-
-  return (await res.json()) as PostDTO;
 }
 
 async function deletePostApi(id: string) {
-  const res = await fetch(`/api/posts/${encodeURIComponent(id)}`, {
-    method: "DELETE",
-    credentials: "same-origin",
-  });
-
-  if (res.status === 401) throw new Error("Unauthorized");
-  if (res.status === 404) throw new Error("Not found");
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    const msg = payload?.error || (await res.text());
-    throw new Error(msg || "Failed to delete post");
-  }
-
-  return (await res.json()) as PostDTO;
+  return apiClient<PostDTO>(`/api/posts/${encodeURIComponent(id)}`, { method: "DELETE", credentials: "same-origin" });
 }
 
 async function actionPostApi(id: string, action: "hide" | "restore") {
-  const res = await fetch(`/api/posts/${encodeURIComponent(id)}`, {
+  return apiClient<PostDTO>(`/api/posts/${encodeURIComponent(id)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
     body: JSON.stringify({ action }),
   });
-
-  if (res.status === 401) throw new Error("Unauthorized");
-  if (res.status === 404) throw new Error("Not found");
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    const msg = payload?.error || (await res.text());
-    throw new Error(msg || "Failed to perform action");
-  }
-
-  return (await res.json()) as PostDTO;
 }
 
 async function reviewListingApi(id: string, approve: boolean, rejectReason?: string) {
-  const res = await fetch(`/api/admin/listings/${encodeURIComponent(id)}`, {
+  return apiClient<PostDTO>(`/api/admin/listings/${encodeURIComponent(id)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
     body: JSON.stringify({ approve, rejectReason }),
   });
-
-  if (res.status === 401) throw new Error("Unauthorized");
-  if (res.status === 404) throw new Error("Not found");
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    const msg = payload?.error || (await res.text());
-    throw new Error(msg || "Failed to review listing");
-  }
-
-  return (await res.json()) as PostDTO;
 }
 
 export function usePostMutations() {

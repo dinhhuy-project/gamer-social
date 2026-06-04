@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api/api-client";
 
 import type { AdminUserDetail } from "@/types/api.types";
 
@@ -10,21 +11,12 @@ type UpdateUserInput = {
 };
 
 async function patchAdminUser(id: string, input: UpdateUserInput) {
-  const res = await fetch(`/api/admin/users/${encodeURIComponent(id)}`, {
+  return apiClient<AdminUserDetail>(`/api/admin/users/${encodeURIComponent(id)}`, {
     method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
     body: JSON.stringify(input),
   });
-
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    throw new Error(payload?.error ?? "Failed to update user");
-  }
-
-  return (await res.json()) as AdminUserDetail;
 }
 
 export function useAdminUserMutations() {

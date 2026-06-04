@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api/api-client";
 import type { UserProfile } from "@/hooks/users/useUser";
 
 type FollowStatusDTO = {
@@ -12,35 +13,17 @@ type FollowStatusDTO = {
 };
 
 async function postFollow(username: string) {
-  const res = await fetch(`/api/users/${encodeURIComponent(username)}/follow`, {
+  return apiClient<FollowStatusDTO>(`/api/users/${encodeURIComponent(username)}/follow`, {
     method: "POST",
     credentials: "same-origin",
   });
-
-  if (res.status === 401) throw new Error("Unauthorized");
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    const msg = payload?.error || (await res.text());
-    throw new Error(msg || "Failed to follow user");
-  }
-
-  return (await res.json()) as FollowStatusDTO;
 }
 
 async function deleteFollow(username: string) {
-  const res = await fetch(`/api/users/${encodeURIComponent(username)}/follow`, {
+  return apiClient<FollowStatusDTO>(`/api/users/${encodeURIComponent(username)}/follow`, {
     method: "DELETE",
     credentials: "same-origin",
   });
-
-  if (res.status === 401) throw new Error("Unauthorized");
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    const msg = payload?.error || (await res.text());
-    throw new Error(msg || "Failed to unfollow user");
-  }
-
-  return (await res.json()) as FollowStatusDTO;
 }
 
 export function useFollow(username?: string) {

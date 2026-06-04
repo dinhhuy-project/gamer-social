@@ -1,6 +1,7 @@
 "use client";
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api/api-client";
 
 import { QUERY_KEYS } from "@/lib/constants/query-keys";
 
@@ -15,7 +16,7 @@ export type AdminUsersFilters = {
   limit?: number;
 };
 
-async function fetchAdminUsers(filters: AdminUsersFilters) {
+async function fetchAdminUsers(filters: AdminUsersFilters, signal?: AbortSignal) {
   const params = new URLSearchParams();
 
   params.set("page", String(filters.page ?? 1));
@@ -28,22 +29,13 @@ async function fetchAdminUsers(filters: AdminUsersFilters) {
   if (filters.verified === "verified") params.set("verified", "true");
   if (filters.verified === "unverified") params.set("verified", "false");
 
-  const res = await fetch(`/api/admin/users?${params.toString()}`, {
-    credentials: "same-origin",
-  });
-
-  if (!res.ok) {
-    const payload = await res.json().catch(() => null);
-    throw new Error(payload?.error ?? "Failed to fetch admin users");
-  }
-
-  return (await res.json()) as AdminUsersResponse;
+  return apiClient<AdminUsersResponse>(`/api/admin/users?${params.toString()}`, { credentials: "same-origin" }, signal);
 }
 
 export function useAdminUsers(filters: AdminUsersFilters) {
   return useQuery<AdminUsersResponse, Error>({
     queryKey: QUERY_KEYS.adminUsers(filters),
-    queryFn: () => fetchAdminUsers(filters),
+    queryFn: ({ signal }) => fetchAdminUsers(filters, signal),
     placeholderData: keepPreviousData,
   });
 }
