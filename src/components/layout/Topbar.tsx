@@ -44,7 +44,6 @@ import { useAuthActions } from "@/hooks/auth/useAuthActions";
 import { useCurrentUser } from "@/hooks/auth/useCurrentUser";
 import { useUnreadNotifications } from "@/hooks/notifications/useUnreadNotifications";
 import { useNotifications } from "@/hooks/notifications/useNotifications";
-import { useRealtimeNotifications } from "@/hooks/notifications/useRealtimeNotifications";
 import { useMarkNotificationRead } from "@/hooks/notifications/useMarkNotificationRead";
 import { useMarkAllNotificationsRead } from "@/hooks/notifications/useMarkAllNotificationsRead";
 import { useGlobalSearch } from "@/hooks/search/useGlobalSearch";
@@ -54,7 +53,7 @@ export function SiteHeader() {
   const { signOut, isLoading } = useAuthActions();
   const { data: currentUser } = useCurrentUser();
   const { data: unread } = useUnreadNotifications(currentUser?.id);
-  useRealtimeNotifications(currentUser?.id);
+  // Notification subscription now handled by NotificationProvider
   const notificationsQuery = useNotifications(currentUser?.id);
   const unreadList = (notificationsQuery.data?.data ?? []).filter((it: any) => !it.isRead);
   const router = useRouter();

@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { QueryProvider } from "@/providers/QueryProvider";
 import { ToastProvider } from "@/providers/ToastProvider";
+import { NotificationProvider } from "@/providers/NotificationProvider";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -19,7 +20,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ToastProvider>
           <QueryProvider>
             <AuthProvider>
-              {children}
+              <NotificationProvider>
+                {children}
+              </NotificationProvider>
             </AuthProvider>
           </QueryProvider>
         </ToastProvider>
