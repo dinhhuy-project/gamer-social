@@ -191,13 +191,8 @@ export function PostCard({
                     <span className="text-[#8b8fa8] text-sm">
                       Posted in{" "}
                       {tagIds.slice(0, 2).map((id, i) => (
-                        <span key={id}>
-                          <Link
-                            href={`/explore?tag=${id}`}
-                            className="text-[#f46d1b] hover:underline hover:text-[#ff8533] transition-colors"
-                          >
-                            #{id}
-                          </Link>
+                        <span key={id} className="text-[#f46d1b] hover:underline hover:text-[#ff8533] transition-colors">
+                          #{id}
                           {i < Math.min(tagIds.length, 2) - 1 && ", "}
                         </span>
                       ))}
