@@ -26,6 +26,8 @@ import {
 } from "@/hooks/membership/useMembership";
 
 import { useDeleteAccount } from "@/hooks/users/useDeleteAccount";
+import { useUpdateProfile } from "@/hooks/users/useUpdateProfile";
+import { useUploadMedia } from "@/hooks/posts/useUploadMedia";
 
 import {
   Card,
@@ -107,6 +109,12 @@ export default function SettingsPage() {
 
   const [deleting, setDeleting] = useState(false);
   const deleteAccount = useDeleteAccount();
+
+  const updateProfile = useUpdateProfile();
+  const uploadMedia = useUploadMedia();
+
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   const [selectedTheme, setSelectedTheme] =
     useState<"light" | "dark" | "system">(
@@ -215,13 +223,23 @@ export default function SettingsPage() {
   }, [membershipConfirm]);
 
   async function handleSave() {
-    console.log({
-      displayName,
-      bio,
-      emailNotifications,
-      pushNotifications,
-      selectedTheme,
-    });
+    setIsSaving(true);
+    setSaveSuccess(false);
+    try {
+      await updateProfile.mutateAsync({
+        display_name: displayName,
+        bio: bio,
+        email_notifications: emailNotifications,
+        push_notifications: pushNotifications,
+      });
+      setSaveSuccess(true);
+      toast.success("Cập nhật hồ sơ thành công");
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err: any) {
+      toast.error(err?.message ?? "Lỗi cập nhật hồ sơ");
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   async function handleStartMembership() {
@@ -242,6 +260,61 @@ export default function SettingsPage() {
       setActiveTab("membership");
     } catch (err: any) {
       setError(err?.message ?? "Không thể tạo phiên thanh toán");
+    }
+  }
+
+  async function handleAvatarUpload(
+    e: React.ChangeEvent<HTMLInputElement>
+  ) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const result = await uploadMedia.mutateAsync(file);
+      await updateProfile.mutateAsync({
+        avatar_url: result.url,
+      });
+      toast.success("Cập nhật avatar thành công");
+    } catch (err: any) {
+      toast.error(err?.message ?? "Lỗi tải lên avatar");
+    }
+  }
+
+  async function handleEmailNotificationsChange(
+    checked: boolean
+  ) {
+    setEmailNotifications(checked);
+    try {
+      await updateProfile.mutateAsync({
+        email_notifications: checked,
+      });
+      toast.success(
+        checked
+          ? "Đã bật thông báo email"
+          : "Đã tắt thông báo email"
+      );
+    } catch (err: any) {
+      setEmailNotifications(!checked);
+      toast.error("Lỗi cập nhật cài đặt");
+    }
+  }
+
+  async function handlePushNotificationsChange(
+    checked: boolean
+  ) {
+    setPushNotifications(checked);
+    try {
+      await updateProfile.mutateAsync({
+        push_notifications: checked,
+      });
+      toast.success(
+        checked
+          ? "Đã bật thông báo push"
+          : "Đã tắt thông báo push"
+      );
+    } catch (err: any) {
+      setPushNotifications(!checked);
+      toast.error("Lỗi cập nhật cài đặt");
     }
   }
 
@@ -418,7 +491,16 @@ export default function SettingsPage() {
                         </AvatarFallback>
                       </Avatar>
 
-                      <button
+                      <input
+                        type="file"
+                        id="avatar-upload"
+                        accept="image/*"
+                        onChange={handleAvatarUpload}
+                        className="hidden"
+                      />
+
+                      <label
+                        htmlFor="avatar-upload"
                         className="
                           absolute
                           bottom-0
@@ -434,10 +516,13 @@ export default function SettingsPage() {
                           bg-orange-500
                           text-black
                           shadow-lg
+                          cursor-pointer
+                          hover:bg-orange-400
+                          transition-colors
                         "
                       >
                         <Camera className="h-4 w-4" />
-                      </button>
+                      </label>
                     </div>
 
                     <div className="text-center">
@@ -469,6 +554,14 @@ export default function SettingsPage() {
                 <CardContent className="pt-6">
                   <div className="space-y-3">
                     <Button
+                      onClick={() =>
+                        document
+                          .getElementById(
+                            "avatar-upload"
+                          )
+                          ?.click()
+                      }
+                      disabled={uploadMedia.isPending}
                       className="
                         w-full
                         bg-orange-500
@@ -477,7 +570,9 @@ export default function SettingsPage() {
                       "
                     >
                       <Camera className="mr-2 h-4 w-4" />
-                      Change Avatar
+                      {uploadMedia.isPending
+                        ? "Đang tải lên..."
+                        : "Change Avatar"}
                     </Button>
 
                     <Button
@@ -625,6 +720,7 @@ export default function SettingsPage() {
                     <div className="flex justify-end">
                       <Button
                         onClick={handleSave}
+                        disabled={isSaving || updateProfile.isPending}
                         className="
                           h-12
                           rounded-xl
@@ -633,12 +729,20 @@ export default function SettingsPage() {
                           font-semibold
                           text-black
                           hover:bg-orange-400
+                          disabled:opacity-50
                         "
                       >
                         <Save className="mr-2 h-4 w-4" />
-                        Save Changes
+                        {isSaving || updateProfile.isPending
+                          ? "Đang lưu..."
+                          : "Save Changes"}
                       </Button>
                     </div>
+                    {saveSuccess && (
+                      <div className="mt-4 rounded-xl border border-green-500/20 bg-green-500/10 p-4 text-sm text-green-100">
+                        ✓ Cập nhật hồ sơ thành công
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>
@@ -877,7 +981,10 @@ export default function SettingsPage() {
                       emailNotifications
                     }
                     onCheckedChange={
-                      setEmailNotifications
+                      handleEmailNotificationsChange
+                    }
+                    disabled={
+                      updateProfile.isPending
                     }
                   />
                 </div>
@@ -911,7 +1018,10 @@ export default function SettingsPage() {
                       pushNotifications
                     }
                     onCheckedChange={
-                      setPushNotifications
+                      handlePushNotificationsChange
+                    }
+                    disabled={
+                      updateProfile.isPending
                     }
                   />
                 </div>

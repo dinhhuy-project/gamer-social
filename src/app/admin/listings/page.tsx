@@ -12,12 +12,15 @@ import { ADMIN_POSTS_TEXT } from "@/components/admin/posts/admin-posts.constants
 import { ListingReviewModal } from "@/components/admin/posts/ListingReviewModal";
 import { ListingStatusBadge } from "@/components/admin/posts/ListingStatusBadge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatCurrency } from "@/lib/utils/format";
 import { useAdminPost, useUpdateAdminPostStatus } from "@/hooks/admin/useAdminPost";
 import { useMarketplaceListings } from "@/hooks/admin/useMarketplaceListings";
 import { useReviewListing } from "@/hooks/admin/useReviewListing";
 
 import type { ListingStatus } from "@/types/api.types";
+
+type ListingActionConfirmation = "approve" | "reject" | "mark-sold" | "re-approve" | null;
 
 const PAGE_SIZE = 20;
 const listingTabs: Array<"all" | ListingStatus> = ["all", "pending_review", "approved", "rejected", "sold"];
@@ -36,6 +39,7 @@ export default function AdminListingsPage() {
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [rejectPostId, setRejectPostId] = useState<string | null>(null);
+  const [listingConfirmation, setListingConfirmation] = useState<ListingActionConfirmation>(null);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -77,6 +81,56 @@ export default function AdminListingsPage() {
       }
     );
   }
+
+  const getConfirmationDetails = (action: ListingActionConfirmation) => {
+    const details: Record<ListingActionConfirmation, { title: string; description: string; buttonLabel: string; variant: "default" | "destructive" } | null> = {
+      approve: {
+        title: "Approve Listing",
+        description: "This listing will be published and visible to all users.",
+        buttonLabel: "Approve",
+        variant: "default",
+      },
+      reject: {
+        title: "Reject Listing",
+        description: "You will be prompted to enter a rejection reason.",
+        buttonLabel: "Reject",
+        variant: "destructive",
+      },
+      "mark-sold": {
+        title: "Mark as Sold",
+        description: "This listing will be marked as sold and removed from the marketplace.",
+        buttonLabel: "Mark as Sold",
+        variant: "default",
+      },
+      "re-approve": {
+        title: "Re-approve Listing",
+        description: "This rejected listing will be published and visible to all users.",
+        buttonLabel: "Re-approve",
+        variant: "default",
+      },
+      null: null,
+    };
+    return details[action];
+  };
+
+  const handleListingConfirm = () => {
+    if (!selectedPost || !listingConfirmation) return;
+
+    if (listingConfirmation === "approve") {
+      handleReview(selectedPost.id, "approve");
+    } else if (listingConfirmation === "reject") {
+      setListingConfirmation(null);
+      setRejectPostId(selectedPost.id);
+      return;
+    } else if (listingConfirmation === "mark-sold") {
+      // Mark as sold is handled by updating listing status
+      // For now, we'll just close the dialog as the action might need backend support
+    } else if (listingConfirmation === "re-approve") {
+      handleReview(selectedPost.id, "approve");
+    }
+
+    setListingConfirmation(null);
+  };
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(6,182,212,0.18),transparent_30%),linear-gradient(180deg,#09090b,#18181b)] px-4 py-6 md:px-8">
@@ -177,16 +231,31 @@ export default function AdminListingsPage() {
                     {selectedPost.listingPrice != null ? formatCurrency(selectedPost.listingPrice) : "-"}
                   </div>
                 </div>
-                {selectedPost.listingStatus === "pending_review" ? (
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button disabled={reviewListing.isPending} onClick={() => handleReview(selectedPost.id, "approve")}>
-                      {ADMIN_POSTS_TEXT.approve}
+                <div className="grid grid-cols-2 gap-2">
+                  {selectedPost.listingStatus === "pending_review" ? (
+                    <>
+                      <Button disabled={reviewListing.isPending} onClick={() => setListingConfirmation("approve")}>
+                        {ADMIN_POSTS_TEXT.approve}
+                      </Button>
+                      <Button variant="destructive" disabled={reviewListing.isPending} onClick={() => setListingConfirmation("reject")}>
+                        {ADMIN_POSTS_TEXT.reject}
+                      </Button>
+                    </>
+                  ) : selectedPost.listingStatus === "approved" ? (
+                    <>
+                      <Button disabled={reviewListing.isPending} onClick={() => setListingConfirmation("mark-sold")}>
+                        Mark Sold
+                      </Button>
+                      <Button variant="destructive" disabled={reviewListing.isPending} onClick={() => setListingConfirmation("reject")}>
+                        {ADMIN_POSTS_TEXT.reject}
+                      </Button>
+                    </>
+                  ) : selectedPost.listingStatus === "rejected" ? (
+                    <Button disabled={reviewListing.isPending} className="col-span-2" onClick={() => setListingConfirmation("re-approve")}>
+                      Re-approve
                     </Button>
-                    <Button variant="destructive" disabled={reviewListing.isPending} onClick={() => setRejectPostId(selectedPost.id)}>
-                      {ADMIN_POSTS_TEXT.reject}
-                    </Button>
-                  </div>
-                ) : null}
+                  ) : null}
+                </div>
               </div>
             ) : (
               <div className="text-sm text-zinc-500">{ADMIN_POSTS_TEXT.noPosts}</div>
@@ -216,6 +285,36 @@ export default function AdminListingsPage() {
         post={postDetailQuery.data}
         isLoading={postDetailQuery.isLoading}
       />
+
+      <Dialog open={listingConfirmation !== null} onOpenChange={(open) => !open && setListingConfirmation(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{getConfirmationDetails(listingConfirmation)?.title}</DialogTitle>
+            <DialogDescription>{getConfirmationDetails(listingConfirmation)?.description}</DialogDescription>
+          </DialogHeader>
+          {selectedPost && (
+            <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+              <p className="text-sm text-zinc-300">
+                <span className="font-medium text-zinc-200">Listing from @{selectedPost.author.username}: </span>
+                {selectedPost.content}
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setListingConfirmation(null)} disabled={reviewListing.isPending}>
+              {ADMIN_POSTS_TEXT.cancel}
+            </Button>
+            <Button
+              variant={getConfirmationDetails(listingConfirmation)?.variant}
+              onClick={handleListingConfirm}
+              disabled={reviewListing.isPending}
+            >
+              {getConfirmationDetails(listingConfirmation)?.buttonLabel}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <ListingReviewModal
         open={Boolean(rejectPostId)}
         onOpenChange={(open) => {

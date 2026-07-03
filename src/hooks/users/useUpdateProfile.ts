@@ -15,6 +15,8 @@ interface UpdateProfileInput {
   bio?: string;
   avatar_url?: string;
   cover_url?: string;
+  email_notifications?: boolean;
+  push_notifications?: boolean;
 }
 
 async function updateProfileApi(
