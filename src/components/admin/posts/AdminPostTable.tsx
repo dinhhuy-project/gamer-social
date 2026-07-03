@@ -314,7 +314,7 @@ export function AdminPostTable({
                         >
                           <BanIcon />
                         </Button>
-                      ) : post.status === "hidden" ? (
+                      ) : (
                         <Button
                           variant="outline"
                           size="icon-sm"
@@ -324,7 +324,7 @@ export function AdminPostTable({
                         >
                           <CheckIcon />
                         </Button>
-                      ) : null}
+                      )}
                       {post.status !== "deleted" && (
                         <Button
                           variant="destructive"
