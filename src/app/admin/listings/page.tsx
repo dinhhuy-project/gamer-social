@@ -83,7 +83,7 @@ export default function AdminListingsPage() {
   }
 
   const getConfirmationDetails = (action: ListingActionConfirmation) => {
-    const details: Record<ListingActionConfirmation, { title: string; description: string; buttonLabel: string; variant: "default" | "destructive" } | null> = {
+    const details: Record<Exclude<ListingActionConfirmation, null>, { title: string; description: string; buttonLabel: string; variant: "default" | "destructive" }> = {
       approve: {
         title: "Approve Listing",
         description: "This listing will be published and visible to all users.",
@@ -108,9 +108,8 @@ export default function AdminListingsPage() {
         buttonLabel: "Re-approve",
         variant: "default",
       },
-      null: null,
     };
-    return details[action];
+    return action ? details[action] : null;
   };
 
   const handleListingConfirm = () => {
