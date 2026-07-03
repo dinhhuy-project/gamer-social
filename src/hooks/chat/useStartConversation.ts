@@ -9,7 +9,12 @@ export function useStartConversation(otherUserId?: string) {
   const currentUserQuery = useCurrentUser();
   const queryClient = useQueryClient();
   const { createConversation: createConversationMutation } = useConversationActions();
-  const findConversationQuery = useFindConversation(otherUserId);
+  const shouldFindConversation = Boolean(
+    otherUserId &&
+    currentUserQuery.data &&
+    currentUserQuery.data.id !== otherUserId
+  );
+  const findConversationQuery = useFindConversation(shouldFindConversation ? otherUserId : undefined);
 
   const mutation = useMutation<ConversationDto, Error, void>({
     mutationFn: async () => {

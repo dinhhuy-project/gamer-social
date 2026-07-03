@@ -33,7 +33,7 @@ export default function ProfilePage({ params }: Props) {
   const profileQuery = useUser(username);
   const profile = profileQuery.data;
   const isOwner = Boolean(currentUserQuery.data && profile && currentUserQuery.data.id === profile.id);
-  const { startConversation, isStarting } = useStartConversation(profile?.id);
+  const { startConversation, isStarting } = useStartConversation(isOwner ? undefined : profile?.id);
 
   const postsQuery = usePosts(1, 10, false, profile?.id, Boolean(profile?.id));
   const posts = postsQuery.data?.data ?? [];
