@@ -98,6 +98,7 @@ export default function SettingsPage() {
   const [paymentRef, setPaymentRef] = useState("");
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const [checkoutExpiresAt, setCheckoutExpiresAt] = useState<string | null>(null);
+  const [checkoutTimeLeft, setCheckoutTimeLeft] = useState("--:--");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"profile" | "membership" | "notifications" | "security">("profile");
@@ -125,6 +126,15 @@ export default function SettingsPage() {
     if (value === "profile" || value === "membership" || value === "notifications" || value === "security") {
       setActiveTab(value as "profile" | "membership" | "notifications" | "security");
     }
+  }
+
+  function buildMembershipResultUrl(status: "expired" | "cancelled") {
+    if (typeof window === "undefined") return null;
+
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", "membership");
+    url.searchParams.set("paymentResult", status);
+    return url.toString();
   }
 
   async function handleDelete() {
@@ -176,6 +186,44 @@ export default function SettingsPage() {
   }, [theme]);
 
   useEffect(() => {
+    if (!checkoutExpiresAt) return;
+
+    const updateCountdown = () => {
+      const expiresAtTime = new Date(checkoutExpiresAt).getTime();
+      const diff = expiresAtTime - Date.now();
+
+      if (diff <= 0) {
+        setCheckoutTimeLeft("00:00");
+        setCheckoutUrl(null);
+        setCheckoutExpiresAt(null);
+        setError("Phiên thanh toán đã hết hạn. Vui lòng tạo lại link để tiếp tục.");
+        setMessage(null);
+        setActiveTab("membership");
+
+        const resultUrl = buildMembershipResultUrl("expired");
+        if (resultUrl) {
+          window.history.replaceState({}, "", resultUrl);
+          window.location.assign(resultUrl);
+        }
+        return;
+      }
+
+      const minutes = Math.floor(diff / 60000);
+      const seconds = Math.floor((diff % 60000) / 1000);
+
+      setCheckoutTimeLeft(`${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`);
+    };
+
+    const timer = window.setInterval(updateCountdown, 1000);
+    const initialTimer = window.setTimeout(updateCountdown, 0);
+
+    return () => {
+      window.clearInterval(timer);
+      window.clearTimeout(initialTimer);
+    };
+  }, [checkoutExpiresAt]);
+
+  useEffect(() => {
     if (typeof window === "undefined") return;
     if (autoConfirmAttempted.current) return;
 
@@ -195,12 +243,21 @@ export default function SettingsPage() {
         params.get("order_code");
       const statusParam = params.get("status")?.toLowerCase();
       const codeParam = params.get("code");
+      const paymentResultParam = params.get("paymentResult")?.toLowerCase();
 
       const isSuccess =
         statusParam === "paid" ||
         statusParam === "success" ||
         statusParam === "00" ||
         codeParam === "00";
+      if (paymentResultParam === "expired") {
+        setError("Phiên thanh toán đã hết hạn. Vui lòng tạo lại link để tiếp tục.");
+        setMessage(null);
+      } else if (paymentResultParam === "cancelled") {
+        setError("Bạn đã hủy thanh toán. Nếu cần, vui lòng tạo link mới.");
+        setMessage(null);
+      }
+
       const shouldAutoConfirm =
         Boolean(paymentRefParam) &&
         (isSuccess || tab === "membership");
@@ -246,6 +303,7 @@ export default function SettingsPage() {
     setMessage(null);
     setError(null);
     setCheckoutUrl(null);
+    setCheckoutTimeLeft("--:--");
 
     try {
       const redirectUrl = new URL(window.location.href);
@@ -258,8 +316,8 @@ export default function SettingsPage() {
       setMessage("Đã tạo link thanh toán PayOS. Vui lòng bấm nút mở để tiếp tục.");
       setCheckoutExpiresAt(session.checkoutExpiresAt);
       setActiveTab("membership");
-    } catch (err: any) {
-      setError(err?.message ?? "Không thể tạo phiên thanh toán");
+    } catch (error: any) {
+      setError(error?.message ?? "Không thể tạo phiên thanh toán");
     }
   }
 
@@ -275,8 +333,8 @@ export default function SettingsPage() {
         avatar_url: result.url,
       });
       toast.success("Cập nhật avatar thành công");
-    } catch (err: any) {
-      toast.error(err?.message ?? "Lỗi tải lên avatar");
+    } catch (error: any) {
+      toast.error(error?.message ?? "Lỗi tải lên avatar");
     }
   }
 
@@ -293,7 +351,7 @@ export default function SettingsPage() {
           ? "Đã bật thông báo email"
           : "Đã tắt thông báo email"
       );
-    } catch (err: any) {
+    } catch {
       setEmailNotifications(!checked);
       toast.error("Lỗi cập nhật cài đặt");
     }
@@ -312,7 +370,7 @@ export default function SettingsPage() {
           ? "Đã bật thông báo push"
           : "Đã tắt thông báo push"
       );
-    } catch (err: any) {
+    } catch {
       setPushNotifications(!checked);
       toast.error("Lỗi cập nhật cài đặt");
     }
@@ -345,8 +403,8 @@ export default function SettingsPage() {
       await membershipConfirm.mutateAsync({ paymentRef: paymentRef.trim() });
       setMessage("Thanh toán đã được xác nhận. Tình trạng membership được cập nhật.");
       setPaymentRef("");
-    } catch (err: any) {
-      setError(err?.message ?? "Không thể xác nhận thanh toán");
+    } catch (error: any) {
+      setError(error?.message ?? "Không thể xác nhận thanh toán");
     }
   }
 
@@ -873,9 +931,17 @@ export default function SettingsPage() {
                     ) : null}
 
                     {checkoutExpiresAt ? (
-                      <p className="text-sm text-zinc-400">
-                        Phiên checkout sẽ hết hạn vào {new Date(checkoutExpiresAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}.
-                      </p>
+                      <div className="rounded-2xl border border-orange-500/20 bg-zinc-900/80 p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-sm text-zinc-400">Thời gian còn lại</span>
+                          <span className="text-lg font-semibold text-orange-300">
+                            {checkoutTimeLeft}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-xs text-zinc-500">
+                          Phiên checkout sẽ hết hạn vào {new Date(checkoutExpiresAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}.
+                        </p>
+                      </div>
                     ) : null}
 
                     <Button
