@@ -33,7 +33,7 @@ export function subscribeToNotifications(
     });
 
   try {
-    realtimeManager.register(supabase, channel);
+    realtimeManager.register(supabase, channel, true);
   } catch (err) {
     // ignore
   }
